@@ -1,0 +1,16 @@
+# This is the docker compose file for creating
+#  a local database for testing
+
+services:
+  postgres:
+    image: postgres:15
+    ports:
+      - 5432:5432
+    volumes:
+      - dbscripts:/var/lib/postgresql/data
+    environment:
+      - POSTGRES_PASSWORD=SimperingSimpletonSimulation
+      - POSTGRES_USER=hf_user
+      - POSTGRES_DB=hf_db
+volumes:
+  dbscripts:
