@@ -3,7 +3,7 @@ from typing import Optional, Dict, Counter
 
 from bs4 import BeautifulSoup
 
-from nlp_data_scraper.dtos.page_info import PageInfo
+from core.nlp_data_scraper.dtos.page_info import PageInfo
 
 
 class HTMLExtractor:

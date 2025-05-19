@@ -5,7 +5,7 @@ from sklearn.linear_model import LogisticRegression
 from sklearn.metrics import classification_report
 from sklearn.model_selection import train_test_split
 
-from hugging_face.url_relevance.constants import TRAINING_URLS_DATASET
+from core.hugging_face.url_relevance.constants import TRAINING_URLS_DATASET
 
 
 def main():

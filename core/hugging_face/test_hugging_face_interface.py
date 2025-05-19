@@ -1,7 +1,7 @@
 import pytest
 
 from collector_db.DTOs.URLWithHTML import URLWithHTML
-from hugging_face.HuggingFaceInterface import HuggingFaceInterface
+from core.hugging_face.HuggingFaceInterface import HuggingFaceInterface
 
 @pytest.mark.asyncio
 async def test_get_url_relevancy():

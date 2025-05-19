@@ -1,7 +1,7 @@
 import asyncio
 import random
 
-from aiohttp import ClientSession, ClientError
+from aiohttp import ClientSession
 
 
 class URLHTMLFetcher:
@@ -10,7 +10,7 @@ class URLHTMLFetcher:
         self, 
         session: ClientSession,
         timeout: int = 20,
-        max_retries: int = 5
+        max_retries: int = 3
     ):
         self.max_retries = max_retries
         self.timeout = timeout
@@ -24,8 +24,7 @@ class URLHTMLFetcher:
                 async with self.session.get(url, timeout=self.timeout) as response:
                     response.raise_for_status()
                     return await response.text()
-
-            except (ClientError, asyncio.TimeoutError) as e:
+            except asyncio.TimeoutError as e:
                 if attempt >= self.max_retries:
                     raise RuntimeError(f"Failed to fetch {url} after {self.max_retries} attempts") from e
 

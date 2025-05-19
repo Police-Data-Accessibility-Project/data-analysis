@@ -1,8 +1,8 @@
 import pandas as pd
 from datasets import load_dataset, concatenate_datasets
 
-from hugging_face.url_relevance.constants import URL_RELEVANCE_DATASET
-from hugging_face.url_relevance.dataclasses.TrainTestDataframes import TrainTestDataframes
+from core.hugging_face.url_relevance.constants import URL_RELEVANCE_DATASET
+from core.hugging_face.url_relevance.dataclasses.TrainTestDataframes import TrainTestDataframes
 
 
 def set_up_dataset(

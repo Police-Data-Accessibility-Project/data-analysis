@@ -9,7 +9,7 @@ from transformers import AutoConfig
 from transformers import AutoTokenizer
 from transformers import TrainingArguments, Trainer
 
-from hugging_face.url_relevance.constants import EMPTY_TEXT_VALUES, DATASET_TEXT_COLS, URL_RELEVANCE_DATASET
+from core.hugging_face.url_relevance.constants import EMPTY_TEXT_VALUES, DATASET_TEXT_COLS, URL_RELEVANCE_DATASET
 
 """ This model is trained using website data from 
     a list of potentially relevant URLs.

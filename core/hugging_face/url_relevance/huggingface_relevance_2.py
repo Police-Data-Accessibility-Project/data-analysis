@@ -1,7 +1,7 @@
 import pandas as pd
 from datasets import load_dataset, concatenate_datasets
 
-from hugging_face.url_relevance.dataclasses.TrainTestDataframes import TrainTestDataframes
+from core.hugging_face.url_relevance.dataclasses.TrainTestDataframes import TrainTestDataframes
 
 MODEL = "distilbert-base-uncased"
 DATASET = "PDAP/urls-relevance"
