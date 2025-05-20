@@ -5,10 +5,11 @@ from environs import Env
 from sqlalchemy import select, outerjoin, not_, true, and_, update
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
+from core.database_logic.dtos.url_html_info import URLHTMLInfo
 from core.database_logic.dtos.url_info import URLInfo
 from core.database_logic.dtos.url_nlp_processing_info import URLNLPProcessingInfo
 from core.database_logic.enums import ComponentType, ErrorType
-from core.database_logic.models import URL, URLFullHTML, URLError, URLComponent
+from core.database_logic.models import URL, URLFullHTML, URLError, URLComponent, URLCompressedHTML
 from core.database_logic.statement_composer import StatementComposer
 from core.nlp_processor.dtos.url_html_processing_job_info import URLHTMLProcessingJobInfo
 from core.nlp_processor.dtos.url_prereq_flags import URLPrereqFlags
@@ -172,3 +173,31 @@ class DatabaseClient:
             value=component_value
         )
         session.add(url_component)
+
+    @session_manager
+    async def get_next_uncompressed_html(self, session: AsyncSession) -> URLHTMLInfo:
+        execution_result = await session.execute(
+            select(
+                URL.id,
+                URLFullHTML.html,
+            )
+            .join(URLFullHTML)
+            .outerjoin(URLCompressedHTML)
+            .where(URLFullHTML.html != None)
+            .where(URLCompressedHTML.id.is_(None))
+            .limit(1)
+        )
+        row = execution_result.mappings().one_or_none()
+
+        if row is None:
+            return None
+
+        return URLHTMLInfo(
+            url_id=row["id"],
+            html=row["html"],
+        )
+
+    @session_manager
+    async def add_compressed_html(self, session: AsyncSession, url_id: int, compressed_html: bytes):
+        url_compressed_html = URLCompressedHTML(url_id=url_id, compressed_html=compressed_html)
+        session.add(url_compressed_html)

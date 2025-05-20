@@ -1,6 +1,6 @@
 from datetime import datetime
 
-from sqlalchemy.orm import declarative_base, Mapped
+from sqlalchemy.orm import declarative_base, Mapped, relationship
 import sqlalchemy as sa
 
 from core.database_logic.enums import ComponentType, ErrorType, HTMLMetadataType
@@ -17,6 +17,16 @@ class URL(Base):
     response_code = sa.Column(sa.Integer, nullable=True)
     created_at: Mapped[datetime] = get_created_at_column_orm()
 
+    # Relationships
+    errors = sa.orm.relationship("URLError", back_populates="url", cascade="all, delete-orphan")
+    full_html = sa.orm.relationship("URLFullHTML", back_populates="url", uselist=False, cascade="all, delete-orphan")
+    compressed_html = sa.orm.relationship("URLCompressedHTML", back_populates="url", uselist=False, cascade="all, delete-orphan")
+    components = sa.orm.relationship("URLComponent", back_populates="url", cascade="all, delete-orphan")
+    html_metadata = sa.orm.relationship("HTMLMetadata", back_populates="url", cascade="all, delete-orphan")
+
+def get_single_url_relationship(back_populates_name: str) -> Mapped[URL]:
+    return sa.orm.relationship("URL", back_populates=back_populates_name, uselist=False)
+
 class URLError(Base):
     __tablename__ = "url_errors"
     id: Mapped[int] = get_id_column_orm()
@@ -29,6 +39,9 @@ class URLError(Base):
     error = sa.Column(sa.Text, nullable=False)
     created_at: Mapped[datetime] = get_created_at_column_orm()
 
+    # Relationships
+    url = get_single_url_relationship("errors")
+
 class URLFullHTML(Base):
     __tablename__ = "url_full_html"
     id: Mapped[int] = get_id_column_orm()
@@ -36,6 +49,19 @@ class URLFullHTML(Base):
     html = sa.Column(sa.Text, nullable=False)
     created_at: Mapped[datetime] = get_created_at_column_orm()
     updated_at: Mapped[datetime] = get_created_at_column_orm()
+
+    # Relationships
+    url = get_single_url_relationship("full_html")
+
+class URLCompressedHTML(Base):
+    __tablename__ = "url_compressed_html"
+    id: Mapped[int] = get_id_column_orm()
+    url_id: Mapped[int] = get_url_id_column_orm()
+    compressed_html = sa.Column(sa.LargeBinary, nullable=False)
+    created_at: Mapped[datetime] = get_created_at_column_orm()
+
+    # Relationships
+    url = get_single_url_relationship("compressed_html")
 
 class URLComponent(Base):
     __tablename__ = "url_components"
@@ -48,6 +74,9 @@ class URLComponent(Base):
     value = sa.Column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = get_created_at_column_orm()
 
+    # Relationships
+    url = get_single_url_relationship("components")
+
 class HTMLMetadata(Base):
     __tablename__ = "html_metadata"
     id: Mapped[int] = get_id_column_orm()
@@ -58,3 +87,6 @@ class HTMLMetadata(Base):
     )
     value = sa.Column(sa.Text, nullable=True)
     created_at: Mapped[datetime] = get_created_at_column_orm()
+
+    # Relationships
+    url = get_single_url_relationship("html_metadata")
