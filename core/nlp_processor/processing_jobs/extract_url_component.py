@@ -29,13 +29,6 @@ class ExtractURLComponentBase(URLHTMLProcessingJobBase, ABC):
     async def process(self, data: Any):
         return await self.get_value_from_url()
 
-    async def upload_results(self, processed_data: Any):
-        await self.db_client.add_url_component(
-            url_id=self.url_id,
-            component_type=self.component_type,
-            component_value=processed_data
-        )
-
 class ExtractURLDomain(ExtractURLComponentBase):
 
     @property

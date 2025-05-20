@@ -2,6 +2,7 @@ import asyncio
 
 import brotli
 
+from core.compression_logic import compress_html
 from core.database_logic.database_client import DatabaseClient
 
 
@@ -10,7 +11,7 @@ async def main():
     next_url_html_info = await dbc.get_next_uncompressed_html()
     while next_url_html_info is not None:
         print(f"Compressing URL {next_url_html_info.url_id}...")
-        compressed_html = brotli.compress(next_url_html_info.html.encode('utf-8'))
+        compressed_html = compress_html(next_url_html_info.html)
         await dbc.add_compressed_html(next_url_html_info.url_id, compressed_html)
         next_url_html_info = await dbc.get_next_uncompressed_html()
 

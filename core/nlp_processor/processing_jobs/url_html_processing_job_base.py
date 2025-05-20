@@ -1,8 +1,8 @@
 from abc import ABC, abstractmethod
-from typing import Any
+from typing import Any, Optional
 
 from core.database_logic.database_client import DatabaseClient
-from core.nlp_processor.dtos.url_html_processing_job_info import URLHTMLProcessingJobInfo
+from core.nlp_processor.dtos.batch_context import BatchContext
 from core.util import format_exception
 
 
@@ -11,10 +11,10 @@ class URLHTMLProcessingJobBase(ABC):
     def __init__(
         self,
         db_client: DatabaseClient,
-        job_info: URLHTMLProcessingJobInfo
+        context: BatchContext
     ):
         self.db_client = db_client
-        self.job_info = job_info
+        self.context = context
 
     @property
     @abstractmethod
@@ -29,27 +29,23 @@ class URLHTMLProcessingJobBase(ABC):
     async def process(self, data: Any):
         pass
 
-    @abstractmethod
-    async def upload_results(self, processed_data: Any):
-        pass
-
-    async def run(self):
+    async def run(self) -> Optional[Any]:
         try:
             data = await self.download_additional_data()
-            processed_data = await self.process(data)
-            await self.upload_results(processed_data)
+            return await self.process(data)
         except Exception as e:
             msg = format_exception(e)
             await self.db_client.add_url_error(
-                url_id=self.job_info.url_info.id,
+                url_id=self.context.url_info.id,
                 error=msg,
                 error_type=self.process_name
             )
+            return None
 
     @property
     def url(self):
-        return self.job_info.url_info.url
+        return self.context.url_info.url
 
     @property
     def url_id(self):
-        return self.job_info.url_info.id
+        return self.context.url_info.id

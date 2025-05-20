@@ -5,14 +5,16 @@ from environs import Env
 from sqlalchemy import select, outerjoin, not_, true, and_, update
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
+from core.compression_logic import decompress_html, compress_html
 from core.database_logic.dtos.url_html_info import URLHTMLInfo
 from core.database_logic.dtos.url_info import URLInfo
-from core.database_logic.dtos.url_nlp_processing_info import URLNLPProcessingInfo
-from core.database_logic.enums import ComponentType, ErrorType
+from core.database_logic.enums import ComponentType, ErrorType, HTMLMetadataType
 from core.database_logic.models import URL, URLFullHTML, URLError, URLComponent, URLCompressedHTML
 from core.database_logic.statement_composer import StatementComposer
-from core.nlp_processor.dtos.url_html_processing_job_info import URLHTMLProcessingJobInfo
-from core.nlp_processor.dtos.url_prereq_flags import URLPrereqFlags
+from core.nlp_processor.dtos.batch_context import BatchContext
+from core.nlp_processor.dtos.batch_jobs import BatchJobs
+from core.nlp_processor.dtos.batch_state import BatchState
+from core.nlp_processor.dtos.job_info.url_component_job_info import ComponentInfo, URLComponentJobInfo
 
 
 def get_postgres_connection_string():
@@ -61,8 +63,16 @@ class DatabaseClient:
 
     @session_manager
     async def add_html(self, session: AsyncSession, url_id: int, html: str):
-        url_full_html = URLFullHTML(url_id=url_id, html=html)
+        url_full_html = URLFullHTML(
+            url_id=url_id,
+            html=html
+        )
         session.add(url_full_html)
+        url_compressed_html = URLCompressedHTML(
+            url_id=url_id,
+            compressed_html=compress_html(html)
+        )
+        session.add(url_compressed_html)
 
     @session_manager
     async def get_urls_without_response_codes(self, session: AsyncSession) -> list[URLInfo]:
@@ -75,21 +85,6 @@ class DatabaseClient:
         )
         raw_results = execution_result.all()
         return [URLInfo(id=id, url=url) for id, url in raw_results]
-
-
-
-    @session_manager
-    async def get_urls_without_html(self, session: AsyncSession) -> list[URLInfo]:
-        execution_result = await session.execute(
-            select(
-                URL.id,
-                URL.url,
-            )
-            .outerjoin(URLFullHTML)
-            .where(URLFullHTML.html.is_(None))
-        )
-
-        raw_results = execution_result.all()
 
         return [URLInfo(id=id, url=url) for id, url in raw_results]
 
@@ -109,21 +104,34 @@ class DatabaseClient:
         session.add(url_error)
 
     @session_manager
-    async def get_next_valid_url_for_nlp_preprocessing(self, session: AsyncSession) -> Optional[URLNLPProcessingInfo]:
+    async def get_next_valid_url_batch_for_nlp_preprocessing(self, session: AsyncSession) -> Optional[BatchState]:
         sc = StatementComposer
 
-        query = select(
-            URL.id,
-            URL.url,
-            URLFullHTML.html,
-            *[sc.url_component_type_exists(type_name) for type_name in ComponentType],
-
-        ).join(URLFullHTML).outerjoin(URLComponent).group_by(URL.id, URL.url, URLFullHTML.html).having(
-            not_(and_(*[
-                sc.url_component_type_exists(type_name) == True
-                for type_name in ComponentType
-            ]))
-        ).limit(1)
+        query = (
+            select(
+                URL.id,
+                URL.url,
+                URLCompressedHTML.compressed_html,
+                *[sc.url_component_type_exists(type_name) for type_name in ComponentType],
+                *[sc.url_html_metadata_type_exists(type_name) for type_name in HTMLMetadataType],
+            ).join(URLCompressedHTML)
+            .outerjoin(URLComponent)
+            .group_by(URL.id, URL.url, URLCompressedHTML.compressed_html)
+            .having(
+                not_(
+                    and_(
+                        *[
+                            sc.url_component_type_exists(type_name) == True
+                            for type_name in ComponentType
+                        ],
+                        *[
+                            sc.url_html_metadata_type_exists(type_name) == True
+                            for type_name in HTMLMetadataType
+                        ]
+                    )
+                )
+            ).limit(1)
+        )
 
         execution_result = await session.execute(query)
         row = execution_result.mappings().one_or_none()
@@ -131,15 +139,15 @@ class DatabaseClient:
         if row is None:
             return None
 
-        return URLNLPProcessingInfo(
-            job_info=URLHTMLProcessingJobInfo(
+        return BatchState(
+            context=BatchContext(
                 url_info=URLInfo(
                     id=row["id"],
                     url=row["url"],
                 ),
-                html=row["html"],
+                html=decompress_html(row["compressed_html"]),
             ),
-            prereq_flags=URLPrereqFlags(
+            jobs=BatchJobs.initialize_with_processed_flags(
                 url_component_scheme=row["has_scheme"],
                 url_component_path=row["has_path"],
                 url_component_domain=row["has_domain"],
@@ -148,6 +156,10 @@ class DatabaseClient:
                 url_component_query_params=row["has_query_params"],
                 url_component_file_format=row["has_file_format"],
                 url_component_suffix=row["has_suffix"],
+                html_metadata_title=row["has_title"],
+                html_metadata_description=row["has_description"],
+                html_metadata_keywords=row["has_keywords"],
+                html_metadata_author=row["has_author"],
             )
         )
 
@@ -159,18 +171,16 @@ class DatabaseClient:
             .values(response_code=response_code)
         )
 
-    @session_manager
     async def add_url_component(
         self,
         session: AsyncSession,
         url_id: int,
-        component_type: ComponentType,
-        component_value: str
+        component_info: ComponentInfo,
     ):
         url_component = URLComponent(
             url_id=url_id,
-            type=component_type.value,
-            value=component_value
+            type=component_info.type,
+            value=component_info.value
         )
         session.add(url_component)
 
@@ -201,3 +211,31 @@ class DatabaseClient:
     async def add_compressed_html(self, session: AsyncSession, url_id: int, compressed_html: bytes):
         url_compressed_html = URLCompressedHTML(url_id=url_id, compressed_html=compressed_html)
         session.add(url_compressed_html)
+
+    @session_manager
+    async def upload_batch_jobs(
+            self,
+            session: AsyncSession,
+            url_id: int,
+            jobs: BatchJobs
+    ):
+
+        # Process components
+        components: list[URLComponentJobInfo] = [
+            jobs.url_component_scheme,
+            jobs.url_component_path,
+            jobs.url_component_domain,
+            jobs.url_component_subdomain,
+            jobs.url_component_fragment,
+            jobs.url_component_query_params,
+            jobs.url_component_file_format,
+            jobs.url_component_suffix,
+        ]
+        for job_info in components:
+            if job_info.processed:
+                continue
+            await self.add_url_component(
+                session=session,
+                url_id=url_id,
+                component_info=job_info.value
+            )
