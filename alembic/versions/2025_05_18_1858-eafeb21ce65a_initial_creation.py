@@ -11,7 +11,7 @@ from alembic import op
 
 import sqlalchemy as sa
 
-from core.alembic_util import get_id_column_ddl, get_created_at_column_ddl, get_url_id_column_ddl, get_enum_column_ddl
+from core.utils.alembic import get_id_column_ddl, get_created_at_column_ddl, get_url_id_column_ddl
 
 # revision identifiers, used by Alembic.
 revision: str = 'eafeb21ce65a'

@@ -10,7 +10,7 @@ from typing import Sequence, Union
 from alembic import op
 import sqlalchemy as sa
 
-from core.alembic_util import get_id_column_ddl, get_url_id_column_ddl, get_created_at_column_ddl, create_url_table
+from core.utils.alembic import create_url_table
 
 # revision identifiers, used by Alembic.
 revision: str = 'b6cd7ff31ae5'

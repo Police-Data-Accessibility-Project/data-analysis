@@ -1,0 +1,1 @@
+This directory contains all job registry instances, broken down by module family, including a convenience module `all.py` which groups them together.
