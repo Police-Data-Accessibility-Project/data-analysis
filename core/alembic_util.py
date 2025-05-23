@@ -63,3 +63,6 @@ def create_url_table(
         get_created_at_column_ddl(),
         *constraints
     )
+
+def drop_enum(enum_name: str) -> None:
+    op.execute(f"DROP TYPE IF EXISTS {enum_name}")

@@ -8,7 +8,7 @@ from core.nlp_processor.dtos.job_info.job_info import JobInfo
 
 class HTMLMetadataInfo(BaseModel):
     type: HTMLMetadataType
-    value: str
+    value: Optional[str]
 
 class HTMLMetadataJobInfo(JobInfo):
     value: Optional[HTMLMetadataInfo] = None

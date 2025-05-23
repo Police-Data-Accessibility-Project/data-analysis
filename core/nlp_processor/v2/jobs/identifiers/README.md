@@ -1,0 +1,1 @@
+Each Job is identified by the combination of its family and job type

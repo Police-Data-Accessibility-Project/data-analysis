@@ -1,0 +1,1 @@
+The job registry connects jobs to their processors via their identifiers

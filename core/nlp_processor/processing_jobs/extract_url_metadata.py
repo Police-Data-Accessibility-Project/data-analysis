@@ -4,6 +4,7 @@ from typing import Optional, Any
 from bs4 import BeautifulSoup
 
 from core.database_logic.enums import HTMLMetadataType
+from core.nlp_processor.dtos.job_info.html_metadata_job_info import HTMLMetadataInfo
 from core.nlp_processor.processing_jobs.url_html_processing_job_base import URLHTMLProcessingJobBase
 
 
@@ -26,8 +27,12 @@ class ExtractURLMetadataBase(URLHTMLProcessingJobBase):
     async def get_metadata_value(self) -> Optional[str]:
         pass
 
-    async def process(self, data: Any):
-        return await self.get_metadata_value()
+    async def process(self, data: Any) -> HTMLMetadataInfo:
+        value = await self.get_metadata_value()
+        return HTMLMetadataInfo(
+            type=self.metadata_type,
+            value=value
+        )
 
     @property
     def soup(self) -> BeautifulSoup:

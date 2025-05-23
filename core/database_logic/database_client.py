@@ -1,20 +1,26 @@
 from functools import wraps
-from typing import Optional
+from typing import Optional, List, Type
 
 from environs import Env
-from sqlalchemy import select, outerjoin, not_, true, and_, update
+from sqlalchemy import select, not_, and_, update
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from core.compression_logic import decompress_html, compress_html
 from core.database_logic.dtos.url_html_info import URLHTMLInfo
 from core.database_logic.dtos.url_info import URLInfo
-from core.database_logic.enums import ComponentType, ErrorType, HTMLMetadataType
-from core.database_logic.models import URL, URLFullHTML, URLError, URLComponent, URLCompressedHTML
-from core.database_logic.statement_composer import StatementComposer
-from core.nlp_processor.dtos.batch_context import BatchContext
+from core.database_logic.enums import ComponentType, ErrorType, HTMLMetadataType, WORKING_CONTENT_METRIC_TYPES
+from core.database_logic.models import URL, URLFullHTML, URLError, URLComponent, URLCompressedHTML, HTMLMetadata, \
+    HTMLContentMetric
+from core.database_logic.statement_composer import ExistsQueryCreator
+from core.nlp_processor.dtos.batch_context import SetContext
 from core.nlp_processor.dtos.batch_jobs import BatchJobs
 from core.nlp_processor.dtos.batch_state import BatchState
+from core.nlp_processor.dtos.job_info.html_metadata_job_info import HTMLMetadataJobInfo, HTMLMetadataInfo
 from core.nlp_processor.dtos.job_info.url_component_job_info import ComponentInfo, URLComponentJobInfo
+from core.nlp_processor.v2.check_query_builder import CheckQueryBuilder
+from core.nlp_processor.v2.jobs.identifiers.job_identifier_base import JobIdentifierBase
+from core.nlp_processor.v2.jobs.result.job_result_base import JobResultBase
+from core.nlp_processor.v2.set_state import SetState
 
 
 def get_postgres_connection_string():
@@ -37,6 +43,9 @@ class DatabaseClient:
             echo=False,
         )
         self.session_maker = async_sessionmaker(bind=self.engine, expire_on_commit=False)
+
+    def compile(self, query):
+        return query.compile(self.engine, compile_kwargs={"literal_binds": True})
 
     @staticmethod
     def session_manager(method):
@@ -84,9 +93,9 @@ class DatabaseClient:
             .where(URL.response_code.is_(None))
         )
         raw_results = execution_result.all()
-        return [URLInfo(id=id, url=url) for id, url in raw_results]
+        return [URLInfo(id=id_, url=url) for id_, url in raw_results]
 
-        return [URLInfo(id=id, url=url) for id, url in raw_results]
+        return [URLInfo(id=id_, url=url) for id_, url in raw_results]
 
     @session_manager
     async def add_url_error(
@@ -105,29 +114,34 @@ class DatabaseClient:
 
     @session_manager
     async def get_next_valid_url_batch_for_nlp_preprocessing(self, session: AsyncSession) -> Optional[BatchState]:
-        sc = StatementComposer
+        component_type_exists_creator = ExistsQueryCreator(
+            attribute=URLComponent.type, valid_enums=ComponentType
+        )
+        html_metadata_type_exists_creator = ExistsQueryCreator(
+            attribute=HTMLMetadata.type, valid_enums=HTMLMetadataType
+        )
+        html_content_metric_type_exists_creator = ExistsQueryCreator(
+            attribute=HTMLContentMetric.type, valid_enums=WORKING_CONTENT_METRIC_TYPES
+        )
 
         query = (
             select(
                 URL.id,
                 URL.url,
                 URLCompressedHTML.compressed_html,
-                *[sc.url_component_type_exists(type_name) for type_name in ComponentType],
-                *[sc.url_html_metadata_type_exists(type_name) for type_name in HTMLMetadataType],
+                *component_type_exists_creator.select(),
+                *html_metadata_type_exists_creator.select(),
+                *html_content_metric_type_exists_creator.select(),
             ).join(URLCompressedHTML)
             .outerjoin(URLComponent)
+            .outerjoin(HTMLMetadata)
             .group_by(URL.id, URL.url, URLCompressedHTML.compressed_html)
             .having(
                 not_(
                     and_(
-                        *[
-                            sc.url_component_type_exists(type_name) == True
-                            for type_name in ComponentType
-                        ],
-                        *[
-                            sc.url_html_metadata_type_exists(type_name) == True
-                            for type_name in HTMLMetadataType
-                        ]
+                        *component_type_exists_creator.where(),
+                        *html_metadata_type_exists_creator.where(),
+                        *html_content_metric_type_exists_creator.where(),
                     )
                 )
             ).limit(1)
@@ -140,7 +154,7 @@ class DatabaseClient:
             return None
 
         return BatchState(
-            context=BatchContext(
+            context=SetContext(
                 url_info=URLInfo(
                     id=row["id"],
                     url=row["url"],
@@ -171,21 +185,21 @@ class DatabaseClient:
             .values(response_code=response_code)
         )
 
+    @staticmethod
     async def add_url_component(
-        self,
         session: AsyncSession,
         url_id: int,
         component_info: ComponentInfo,
     ):
         url_component = URLComponent(
             url_id=url_id,
-            type=component_info.type,
+            type=component_info.type.value,
             value=component_info.value
         )
         session.add(url_component)
 
     @session_manager
-    async def get_next_uncompressed_html(self, session: AsyncSession) -> URLHTMLInfo:
+    async def get_next_uncompressed_html(self, session: AsyncSession) -> Optional[URLHTMLInfo]:
         execution_result = await session.execute(
             select(
                 URL.id,
@@ -219,7 +233,6 @@ class DatabaseClient:
             url_id: int,
             jobs: BatchJobs
     ):
-
         # Process components
         components: list[URLComponentJobInfo] = [
             jobs.url_component_scheme,
@@ -239,3 +252,144 @@ class DatabaseClient:
                 url_id=url_id,
                 component_info=job_info.value
             )
+
+        # Process HTML metadata
+        metadata: list[HTMLMetadataJobInfo] = [
+            jobs.html_metadata_title,
+            jobs.html_metadata_description,
+            jobs.html_metadata_keywords,
+            jobs.html_metadata_author,
+        ]
+        for job_info in metadata:
+            if job_info.processed:
+                continue
+            await self.add_html_metadata(
+                session=session,
+                url_id=url_id,
+                metadata_info=job_info.value
+            )
+
+    @staticmethod
+    async def add_html_metadata(
+        session: AsyncSession,
+        url_id: int,
+        metadata_info: HTMLMetadataInfo
+    ):
+        html_metadata = HTMLMetadata(
+            url_id=url_id,
+            type=metadata_info.type.value,
+            value=metadata_info.value
+        )
+        session.add(html_metadata)
+
+
+    @session_manager
+    async def get_run_jobs(
+        self,
+        session: AsyncSession,
+        job_ids: List[Type[JobIdentifierBase]]
+    ) -> List[Type[JobIdentifierBase]]:
+        """
+        Get the set of jobs whose existence should be checked for all valid URLs in the database
+        :param session:
+        :param job_ids:
+        :return:
+        """
+        builder = CheckQueryBuilder(job_ids)
+        subqs = []
+        for job_id in builder.job_ids:
+            subq = builder.build_global_subquery(job_id)
+            subqs.append(subq)
+        query = select(*subqs)
+
+        execution_result = await session.execute(query)
+        row = execution_result.mappings().one_or_none()
+
+        missing_jobs = []
+        for label in builder.get_all_labels():
+            any_url_missing_job = row[label]
+            if any_url_missing_job:
+                job_id = builder.get_job_id_from_label(label)
+                missing_jobs.append(job_id)
+
+        return missing_jobs
+
+    @session_manager
+    async def get_next_url_set(
+        self,
+        session: AsyncSession,
+        job_ids: List[Type[JobIdentifierBase]]
+    ) -> Optional[SetState]:
+        """
+        Get the set of jobs for this URL, aka all jobs which have NOT yet been performed on this URL
+        :param session:
+        :param job_ids:
+        :return:
+        """
+        builder = CheckQueryBuilder(job_ids)
+        select_subqueries = builder.get_flag_select_subqueries()
+        where_subqueries = [subquery == False for subquery in select_subqueries if subquery is not None]
+
+        query = select(
+            URL.id,
+            URL.url,
+            URLCompressedHTML.compressed_html,
+            *select_subqueries
+        ).join(
+            URLCompressedHTML
+        )
+
+        # Outer join for every family with jobs present
+        query = builder.add_family_outer_joins(query)
+
+        # Finalize Query
+        query = query.group_by(
+            URL.id,
+            URL.url,
+            URLCompressedHTML.compressed_html
+        ).having(
+            not_(
+                and_(
+                    *where_subqueries
+                )
+            )
+        ).limit(1)
+
+        execution_result = await session.execute(query)
+        row = execution_result.mappings().one_or_none()
+
+        if row is None:
+            return None
+
+        set_jobs = []
+        for label in builder.get_all_labels():
+            url_missing_job = row[label]
+            if url_missing_job:
+                job_id = builder.get_job_id_from_label(label)
+                set_jobs.append(job_id)
+
+        return SetState(
+            context=SetContext(
+                url_info=URLInfo(
+                    id=row["id"],
+                    url=row["url"],
+                ),
+                html=decompress_html(row["compressed_html"]),
+            ),
+            job_ids=set_jobs
+        )
+
+    @session_manager
+    async def upload_jobs_for_set(
+        self,
+        session: AsyncSession,
+        url_id: int,
+        job_results: List[JobResultBase]
+    ):
+
+        all_models = []
+        for job_result in job_results:
+            models = job_result.get_as_models(url_id)
+            all_models.extend(models)
+
+        session.add_all(all_models)

@@ -6,7 +6,7 @@
 
 ```bash
 uv sync
-python -m spacy download en_core_web_sm
+python -m spacy download en_core_web_trf
 docker compose up -d
 alembic upgrade head
 ```

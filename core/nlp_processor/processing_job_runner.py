@@ -2,9 +2,12 @@ from typing import List, Type, Tuple
 
 from core.database_logic.database_client import DatabaseClient
 from core.nlp_processor.dtos.batch_state import BatchState
+from core.nlp_processor.dtos.job_info.job_info import JobInfo
 from core.nlp_processor.processing_jobs.extract_url_component import ExtractURLDomain, ExtractURLSuffix, \
     ExtractURLFileFormat, ExtractURLScheme, ExtractURLSubdomain, ExtractURLPath, ExtractURLQueryParams, \
     ExtractURLFragment
+from core.nlp_processor.processing_jobs.extract_url_metadata import ExtractURLTitleMetadata, \
+    ExtractURLDescriptionMetadata, ExtractURLKeywordsMetadata, ExtractURLAuthorMetadata
 from core.nlp_processor.processing_jobs.url_html_processing_job_base import URLHTMLProcessingJobBase
 
 class ProcessingJobRunner:
@@ -26,6 +29,10 @@ class ProcessingJobRunner:
             (jobs.url_component_fragment, ExtractURLFragment),
             (jobs.url_component_query_params, ExtractURLQueryParams),
             (jobs.url_component_file_format, ExtractURLFileFormat),
+            (jobs.html_metadata_title, ExtractURLTitleMetadata),
+            (jobs.html_metadata_description, ExtractURLDescriptionMetadata),
+            (jobs.html_metadata_keywords, ExtractURLKeywordsMetadata),
+            (jobs.html_metadata_author, ExtractURLAuthorMetadata),
         ]
         for job_info, cls in entries:
             if not job_info.processed:

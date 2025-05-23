@@ -1,12 +1,14 @@
 from typing import Optional
 
+
 from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, PrivateAttr
+from spacy.tokens.doc import Doc
 
 from core.database_logic.dtos.url_info import URLInfo
 
 
-class BatchContext(BaseModel):
+class SetContext(BaseModel):
     """
     Represents a shared input for all jobs.
 
@@ -18,9 +20,18 @@ class BatchContext(BaseModel):
     url_info: URLInfo
     html: str
     _soup: Optional[BeautifulSoup] = PrivateAttr(default=None)
+    _spacy_doc: Optional[Doc] = PrivateAttr(default=None)
 
     @property
     def soup(self) -> BeautifulSoup:
         if self._soup is None:
             self._soup = BeautifulSoup(self.html, "lxml")
         return self._soup
+
+    @property
+    def spacy_doc(self) -> Doc:
+        if self._spacy_doc is None:
+            from core.nlp_processor.v2.globals import SPACY_MODEL
+            text = self.soup.get_text(separator=' ', strip=True)
+            self._spacy_doc = SPACY_MODEL(text)
+        return self._spacy_doc

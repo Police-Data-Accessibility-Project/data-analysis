@@ -8,7 +8,7 @@ from core.nlp_processor.dtos.job_info.job_info import JobInfo
 
 class ComponentInfo(BaseModel):
     type: ComponentType
-    value: str
+    value: Optional[str]
 
 
 class URLComponentJobInfo(JobInfo):

@@ -2,7 +2,7 @@ from abc import ABC, abstractmethod
 from typing import Any, Optional
 
 from core.database_logic.database_client import DatabaseClient
-from core.nlp_processor.dtos.batch_context import BatchContext
+from core.nlp_processor.dtos.batch_context import SetContext
 from core.util import format_exception
 
 
@@ -11,7 +11,7 @@ class URLHTMLProcessingJobBase(ABC):
     def __init__(
         self,
         db_client: DatabaseClient,
-        context: BatchContext
+        context: SetContext
     ):
         self.db_client = db_client
         self.context = context
@@ -35,6 +35,7 @@ class URLHTMLProcessingJobBase(ABC):
             return await self.process(data)
         except Exception as e:
             msg = format_exception(e)
+            print(msg)
             await self.db_client.add_url_error(
                 url_id=self.context.url_info.id,
                 error=msg,

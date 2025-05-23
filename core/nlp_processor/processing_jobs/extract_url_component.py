@@ -5,6 +5,7 @@ from tldextract import extract
 from yarl import URL
 
 from core.database_logic.enums import ComponentType
+from core.nlp_processor.dtos.job_info.url_component_job_info import URLComponentJobInfo, ComponentInfo
 from core.nlp_processor.processing_jobs.url_html_processing_job_base import URLHTMLProcessingJobBase
 
 
@@ -26,8 +27,11 @@ class ExtractURLComponentBase(URLHTMLProcessingJobBase, ABC):
     async def get_value_from_url(self) -> Optional[str]:
         pass
 
-    async def process(self, data: Any):
-        return await self.get_value_from_url()
+    async def process(self, data: Any) -> ComponentInfo:
+        return ComponentInfo(
+            type=self.component_type,
+            value=await self.get_value_from_url()
+        )
 
 class ExtractURLDomain(ExtractURLComponentBase):
 
