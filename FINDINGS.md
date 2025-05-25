@@ -21,6 +21,20 @@ Web pages often reference their location in multiple parts of a web page, includ
 
 While in some cases multiple locations may be referenced, generally the location most often referenced is the location associated with the source. This makes the location one of the comparatively easier problems. Many pretrained NLP models, such as SpaCy, are effective at identifying when a location is being referenced. Once locations are found, it is comparatively simple to cross-reference them with our database of known locations and identify the most probable location.
 
+## Dataset is imbalanced towards relevant URLs
+
+Our dataset is considerably imbalanced towards relevant URLs, with 3788 relevant URLs and 500 non-relevant URLs, a ratio of over 7:1.
+
+This compromises straightforward analysis, but can be mediated through some statistical techniques. However, the best solution is to increase the number of non-relevant URLs.
+
+## Balancing the dataset is a non-trivial task.
+
+Increasing the number of non-relevant URLs is not straightforward, as the sort of non-relevant URLs we receive is heavily dependent on our means of obtaining URLs.
+
+For example, targeted google searches will likely return a different kind of non-relevant URL as compared to pulling URLs at random from Common Crawl. And the non-relevant URLs which we receive by manual submission would likely be different as well.
+
+In any ML model we use, the utility of different features will likely change as the distribution of URLs changes as we receive more URLs through some sources and not through others. Because of this, ML models will need to be regularly retrained. We should also consider complementing them with rules-based models. 
+
 # URL Components
 
 ## The majority of schemes are https, and this is unlikely to be relevant.
@@ -174,3 +188,36 @@ For example, in https://www.jacksonms.gov/documents/mayoral-executive-order-amen
 Some web pages may not provide all information about a location, but still contain some, for example, URLs for http://www.longbeach.gov includes multiple mention of the name "Long Beach", but rarely if ever mention "California", the state it is in.
 
 Consequently, when determining relevant agencies, location name frequency should be used as a primary indicator of a web page's location. An ML model may not be needed at all, aside from the SpaCy model used to classify words as locations.
+
+### Many non-relevant URLs contain the word `police`
+
+Many non-relevant URLs contain the word `police` in their web pages or URLs. Examples include:
+
+- https://www.newcastlewa.gov/departments/police/solicitors
+- https://www.southamptontownnypolice.gov/608/animal-control
+- https://estespark.colorado.gov/departments/police/operations/patrol/code-enforcement/report-a-potential-code-violation
+
+In many cases, these are either related to routine enforcement of non-criminal laws or police are incidentally mentioned as part of a broader suite of topics.
+
+### URLs that contain the word `police` are substantially more likely to be relevant
+
+Of URLs that contained the word police at least once, (89%) were relevant and (11%) were not relevant.
+
+The same holds true for other terms, including:
+- `department`: 84% vs 16%
+- `service`: 83.3% vs 16.7%
+- `report`: 88.1% vs 11.9%
+
+NOTE: This is compromised by the fact that our dataset is substantially biased towards relevant-URLs. Reapply this analysis after applying stratified analysis (AKA, calculate proportions of frequencies separately for relevant and non-relevant URLs).
+
+### Some words exist substantially more in non-relevant URLs than in relevant URLs
+
+In many cases, relevant records are identifiable by the words they *don't* have rather than the words they do.
+
+When normalizing by URL count, words that exist substantially more in non-relevant URLs include:
+- `play` (2% in relevant vs. 13% in non-relevant)
+- `recovery` (1.4% vs. 13.4%)
+- `reserve` (4.8% vs. 15%)
+- `government` (9.3% vs 30.4%)
+
+NOTE: This is compromised by the fact that our dataset is substantially biased towards relevant-URLs. Reapply this analysis after applying stratified analysis (AKA, calculate proportions of frequencies separately for relevant and non-relevant URLs).

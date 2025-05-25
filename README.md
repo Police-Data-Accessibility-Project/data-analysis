@@ -16,7 +16,9 @@ alembic upgrade head
 
 1. Gather URLs from dataset
 `python core/pipeline/1_get_dataset_urls.py`
-2. Get HTML from URLs
-`python core/pipeline/2_fetch_html.py`
-3. Process HTML data
-`python core/pipeline/3_process_data.py`
+2. Get URL Annotations
+`python core/pipeline/2_get_url_annotations.py`
+3. Get HTML from URLs
+`python core/pipeline/3_fetch_html.py`
+4. Process HTML data
+`python core/pipeline/4_process_data.py`

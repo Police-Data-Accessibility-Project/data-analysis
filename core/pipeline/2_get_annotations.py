@@ -1,3 +1,7 @@
+"""
+Get annotations from URLs and add them to the database
+"""
+
 import asyncio
 
 from datasets import load_dataset
