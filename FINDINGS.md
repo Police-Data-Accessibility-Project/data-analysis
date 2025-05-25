@@ -170,7 +170,7 @@ However, like with `titles`, many are generic or unclear in their relation to th
 - https://police.greenvillesc.gov/874/transparency-portal: `Learn about the Police Department and how it serves city residents.`
 - https://icjia.illinois.gov/about/publications/a-profile-of-the-illinois-state-police-motor-vehicle-theft-intelligence-clearinghouse/: `Illinois Criminal Justice Information Authority` 
 
-### Keywords are rare, and inconsistently used
+## Keywords are rare, and inconsistently used
 
 Keyword metadata was present in only 125 web pages. Examples include:
 
@@ -181,7 +181,7 @@ Keyword metadata was present in only 125 web pages. Examples include:
 
 As can be seen, keyword format was inconsistent, and was often treated as an extension of metadata title or description. These can be useful for analyses using word count frequency, but otherwise should be approached with caution.
 
-### Author metadata is very rare, and sometimes contains locational information.
+## Author metadata is very rare, and sometimes contains locational information.
 
 Of the web pages analyzed, only 83 made use of the `Author` metadata. Examples include:
 
