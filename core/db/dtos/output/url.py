@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
 
-class URLInfo(BaseModel):
+class URLOutput(BaseModel):
     id: int
     url: str

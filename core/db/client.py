@@ -1,15 +1,16 @@
 from functools import wraps
-from typing import Optional, List, Type
+from typing import Optional, List, Dict
 
 from environs import Env
-from sqlalchemy import select, not_, and_, update
+from sqlalchemy import select, update, or_
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
+from core.db.dtos.input.url_annotations import URLAnnotationsInput
 from core.utils.compression import decompress_html, compress_html
-from core.db.dtos.url_html_info import URLHTMLInfo
-from core.db.dtos.url_info import URLInfo
+from core.db.dtos.input.url_html import URLHTMLInput
+from core.db.dtos.output.url import URLOutput
 from core.db.enums import ErrorType
-from core.db.models import URL, URLFullHTML, URLError, URLCompressedHTML
+from core.db.models.core import URL, URLFullHTML, URLError, URLCompressedHTML, URLAnnotations
 from core.nlp_processor.check_query_builder import CheckQueryBuilder
 from core.nlp_processor.jobs.identifiers.base import JobIdentifierBase
 from core.nlp_processor.jobs.result.base import JobResultBase
@@ -78,7 +79,7 @@ class DatabaseClient:
         session.add(url_compressed_html)
 
     @session_manager
-    async def get_urls_without_response_codes(self, session: AsyncSession) -> list[URLInfo]:
+    async def get_urls_without_response_codes(self, session: AsyncSession) -> list[URLOutput]:
         execution_result = await session.execute(
             select(
                 URL.id,
@@ -87,9 +88,9 @@ class DatabaseClient:
             .where(URL.response_code.is_(None))
         )
         raw_results = execution_result.all()
-        return [URLInfo(id=id_, url=url) for id_, url in raw_results]
+        return [URLOutput(id=id_, url=url) for id_, url in raw_results]
 
-        return [URLInfo(id=id_, url=url) for id_, url in raw_results]
+        return [URLOutput(id=id_, url=url) for id_, url in raw_results]
 
     @session_manager
     async def add_url_error(
@@ -101,7 +102,7 @@ class DatabaseClient:
     ):
         url_error = URLError(
             url_id=url_id,
-            error_type=error_type.value,
+            error_type=error_type,
             error=error
         )
         session.add(url_error)
@@ -115,7 +116,7 @@ class DatabaseClient:
         )
 
     @session_manager
-    async def get_next_uncompressed_html(self, session: AsyncSession) -> Optional[URLHTMLInfo]:
+    async def get_next_uncompressed_html(self, session: AsyncSession) -> Optional[URLHTMLInput]:
         execution_result = await session.execute(
             select(
                 URL.id,
@@ -132,7 +133,7 @@ class DatabaseClient:
         if row is None:
             return None
 
-        return URLHTMLInfo(
+        return URLHTMLInput(
             url_id=row["id"],
             html=row["html"],
         )
@@ -142,15 +143,12 @@ class DatabaseClient:
         url_compressed_html = URLCompressedHTML(url_id=url_id, compressed_html=compressed_html)
         session.add(url_compressed_html)
 
-
-
-
     @session_manager
     async def get_run_jobs(
         self,
         session: AsyncSession,
-        job_ids: List[Type[JobIdentifierBase]]
-    ) -> List[Type[JobIdentifierBase]]:
+        job_ids: List[JobIdentifierBase]
+    ) -> List[JobIdentifierBase]:
         """
         Get the set of jobs whose existence should be checked for all valid URLs in the database
         :param session:
@@ -180,7 +178,7 @@ class DatabaseClient:
     async def get_next_url_set(
         self,
         session: AsyncSession,
-        job_ids: List[Type[JobIdentifierBase]]
+        job_ids: List[JobIdentifierBase]
     ) -> Optional[SetState]:
         """
         Get the set of jobs for this URL, aka all jobs which have NOT yet been performed on this URL
@@ -188,9 +186,11 @@ class DatabaseClient:
         :param job_ids:
         :return:
         """
+        if len(job_ids) == 0:
+            return None
+
         builder = CheckQueryBuilder(job_ids)
         select_subqueries = builder.get_flag_select_subqueries()
-        where_subqueries = [subquery == False for subquery in select_subqueries if subquery is not None]
 
         query = select(
             URL.id,
@@ -210,10 +210,8 @@ class DatabaseClient:
             URL.url,
             URLCompressedHTML.compressed_html
         ).having(
-            not_(
-                and_(
-                    *where_subqueries
-                )
+            or_(
+                *select_subqueries
             )
         ).limit(1)
 
@@ -232,7 +230,7 @@ class DatabaseClient:
 
         return SetState(
             context=SetContext(
-                url_info=URLInfo(
+                url_info=URLOutput(
                     id=row["id"],
                     url=row["url"],
                 ),
@@ -255,3 +253,32 @@ class DatabaseClient:
             all_models.extend(models)
 
         session.add_all(all_models)
+
+    async def get_url_url_id_map(self, session: AsyncSession) -> Dict[str, int]:
+        execution_result = await session.execute(
+            select(
+                URL.id,
+                URL.url,
+            )
+        )
+        raw_results = execution_result.all()
+        return {url: id_ for id_, url in raw_results}
+
+    @session_manager
+    async def add_annotations(
+        self,
+        session: AsyncSession,
+        annotations: List[URLAnnotationsInput]
+    ):
+        uui_map = await self.get_url_url_id_map(session)
+
+        for annotation in annotations:
+            url_id = uui_map[annotation.url]
+
+            url_annotations = URLAnnotations(
+                url_id=url_id,
+                relevant=annotation.relevant,
+                record_type_fine=annotation.record_type_fine,
+                record_type_coarse=annotation.record_type_coarse
+            )
+            session.add(url_annotations)

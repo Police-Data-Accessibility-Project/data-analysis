@@ -1,4 +1,4 @@
-from core.db.models import FamilyModel
+from core.db.models.core import FamilyModel
 from core.nlp_processor.families.enum import FamilyType
 from core.nlp_processor.families.registry.entry import FamilyRegistryEntry
 from core.nlp_processor.jobs.result.base import JobResultBase

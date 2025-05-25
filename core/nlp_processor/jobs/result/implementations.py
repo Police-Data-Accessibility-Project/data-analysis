@@ -1,6 +1,6 @@
 from typing import List
 
-from core.db.models import FamilyModel, HTMLMetadata, URLComponent, HTMLContentMetric, HTMLBagOfWords
+from core.db.models.core import FamilyModel, HTMLMetadata, URLComponent, HTMLContentMetric, HTMLBagOfWords
 from core.nlp_processor.jobs.result.base import JobResultBase
 
 

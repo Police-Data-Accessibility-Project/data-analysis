@@ -6,7 +6,7 @@ from typing import Any, Optional
 import sqlalchemy as sa
 from sqlalchemy.orm import declarative_base, Mapped
 
-from core.db.enums import ErrorType
+from core.db.enums import ErrorType, RecordTypeFine, RecordTypeCoarse
 from core.db.models.helpers import get_id_column_orm, get_created_at_column_orm, get_url_id_column_orm, \
     get_enum_column_orm
 from core.nlp_processor.jobs.enums import HTMLContentMetricJobType, HTMLMetadataJobType, URLComponentJobType, \
@@ -14,6 +14,10 @@ from core.nlp_processor.jobs.enums import HTMLContentMetricJobType, HTMLMetadata
 
 Base = declarative_base()
 
+url_relationship_kwargs = dict(
+    cascade="all, delete-orphan",
+    back_populates="url"
+)
 
 class URL(Base):
     __tablename__ = "urls"
@@ -23,22 +27,25 @@ class URL(Base):
     created_at: Mapped[datetime] = get_created_at_column_orm()
 
     # Relationships
-    errors = sa.orm.relationship("URLError", back_populates="url", cascade="all, delete-orphan")
-    full_html = sa.orm.relationship("URLFullHTML", back_populates="url", uselist=False, cascade="all, delete-orphan")
+    errors = sa.orm.relationship("URLError", **url_relationship_kwargs)
+    full_html = sa.orm.relationship("URLFullHTML", uselist=False, **url_relationship_kwargs)
     compressed_html = sa.orm.relationship(
-        "URLCompressedHTML", back_populates="url", uselist=False, cascade="all, delete-orphan"
+        "URLCompressedHTML", uselist=False, **url_relationship_kwargs
         )
-    components = sa.orm.relationship("URLComponent", back_populates="url", cascade="all, delete-orphan")
-    html_metadata = sa.orm.relationship("HTMLMetadata", back_populates="url", cascade="all, delete-orphan")
-    html_content_metrics = sa.orm.relationship("HTMLContentMetric", back_populates="url", cascade="all, delete-orphan")
-    html_bag_of_words = sa.orm.relationship("HTMLBagOfWords", back_populates="url", cascade="all, delete-orphan")
+    components = sa.orm.relationship("URLComponent", **url_relationship_kwargs)
+    html_metadata = sa.orm.relationship("HTMLMetadata", **url_relationship_kwargs)
+    html_content_metrics = sa.orm.relationship("HTMLContentMetric", **url_relationship_kwargs)
+    html_bag_of_words = sa.orm.relationship("HTMLBagOfWords", **url_relationship_kwargs)
+    annotations = sa.orm.relationship("URLAnnotations", **url_relationship_kwargs)
 
-
-class FamilyModel(Base):
+class URLDerivedModel(Base):
     __abstract__ = True
     id: Mapped[int] = get_id_column_orm()
     url_id: Mapped[int] = get_url_id_column_orm()
     created_at: Mapped[datetime] = get_created_at_column_orm()
+
+class FamilyModel(URLDerivedModel):
+    __abstract__ = True
 
     @property
     @abstractmethod
@@ -59,44 +66,52 @@ class FamilyModel(Base):
 def get_single_url_relationship(back_populates_name: str) -> Mapped[URL]:
     return sa.orm.relationship("URL", back_populates=back_populates_name, uselist=False)
 
+class URLAnnotations(URLDerivedModel):
+    __tablename__ = 'url_annotations'
+    relevant: Mapped[bool] = sa.Column(sa.Boolean, nullable=False)
+    record_type_fine: Mapped[RecordTypeFine] = get_enum_column_orm(
+        enum_class=RecordTypeFine,
+        enum_name="url_annotations_fine_record_type",
+        nullable=False
+    )
+    record_type_coarse: Mapped[RecordTypeCoarse] = get_enum_column_orm(
+        enum_class=RecordTypeCoarse,
+        enum_name="url_annotations_coarse_record_type",
+        nullable=False
+    )
 
-class URLError(Base):
+    # Relationships
+    url = get_single_url_relationship("annotations")
+
+class URLError(URLDerivedModel):
     __tablename__ = "url_errors"
-    id: Mapped[int] = get_id_column_orm()
-    url_id: Mapped[int] = get_url_id_column_orm()
     error_type: Mapped[ErrorType] = get_enum_column_orm(
         enum_class=ErrorType,
         enum_name="error_type",
         nullable=False
     )
     error = sa.Column(sa.Text, nullable=False)
-    created_at: Mapped[datetime] = get_created_at_column_orm()
 
     # Relationships
     url = get_single_url_relationship("errors")
 
 
-class URLFullHTML(Base):
+class URLFullHTML(URLDerivedModel):
     __tablename__ = "url_full_html"
-    id: Mapped[int] = get_id_column_orm()
-    url_id: Mapped[int] = get_url_id_column_orm()
     html = sa.Column(sa.Text, nullable=False)
-    created_at: Mapped[datetime] = get_created_at_column_orm()
     updated_at: Mapped[datetime] = get_created_at_column_orm()
 
     # Relationships
     url = get_single_url_relationship("full_html")
 
 
-class URLCompressedHTML(Base):
+class URLCompressedHTML(URLDerivedModel):
     __tablename__ = "url_compressed_html"
-    id: Mapped[int] = get_id_column_orm()
-    url_id: Mapped[int] = get_url_id_column_orm()
     compressed_html = sa.Column(sa.LargeBinary, nullable=False)
-    created_at: Mapped[datetime] = get_created_at_column_orm()
 
     # Relationships
     url = get_single_url_relationship("compressed_html")
+
 
 
 class URLComponent(FamilyModel):

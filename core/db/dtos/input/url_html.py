@@ -1,6 +1,6 @@
 from pydantic import BaseModel
 
 
-class URLHTMLInfo(BaseModel):
+class URLHTMLInput(BaseModel):
     url_id: int
     html: str

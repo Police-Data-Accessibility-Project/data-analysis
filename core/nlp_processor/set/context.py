@@ -5,7 +5,7 @@ from bs4 import BeautifulSoup
 from pydantic import BaseModel, ConfigDict, PrivateAttr
 from spacy.tokens.doc import Doc
 
-from core.db.dtos.url_info import URLInfo
+from core.db.dtos.output.url import URLOutput
 
 
 class SetContext(BaseModel):
@@ -17,7 +17,7 @@ class SetContext(BaseModel):
     """
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
-    url_info: URLInfo
+    url_info: URLOutput
     html: str
     _soup: Optional[BeautifulSoup] = PrivateAttr(default=None)
     _spacy_doc: Optional[Doc] = PrivateAttr(default=None)

@@ -1,8 +1,8 @@
 from typing import Type, Any
 
-from sqlalchemy import func, case, exists, and_
+from sqlalchemy import func, case, exists, and_, select, or_
 
-from core.db.models import URL
+from core.db.models.core import URL, URLCompressedHTML
 from core.nlp_processor.families.registry.instances import FAMILY_REGISTRY
 from core.nlp_processor.jobs.identifiers.base import JobIdentifierBase
 
@@ -24,7 +24,7 @@ class CheckQueryBuilder:
 
     def build_global_subquery(
         self,
-        job_id: Type[JobIdentifierBase],
+        job_id: JobIdentifierBase,
     ) -> Any:
         """
         Checks if ANY URL is missing the given job
@@ -35,12 +35,21 @@ class CheckQueryBuilder:
         job_type = job_id.job_type
         label = self.get_label(job_id)
 
-        return ~exists().where(
-                    and_(
-                        model.url_id == URL.id,
-                        model.type == job_type.value
+        return exists(
+            select(URL.id)
+            .join(URLCompressedHTML)
+            .where(
+                ~exists(
+                    select(model.id)
+                    .where(
+                        and_(
+                            model.url_id == URL.id,
+                            model.type == job_type.value
+                        )
                     )
-                ).label(label)
+                )
+            )
+        ).label(label)
 
     def get_flag_select_subqueries(self) -> list[Any]:
         subqueries = []
@@ -60,14 +69,14 @@ class CheckQueryBuilder:
 
     def build_flag_subquery(
         self,
-        job_id: Type[JobIdentifierBase],
+        job_id: JobIdentifierBase,
     ) -> Any:
         model = FAMILY_REGISTRY.get_model(job_id.family)
         job_type = job_id.job_type
-        return func.bool_or(
-            case(
-                (model.type == job_type.value, False),
-                else_=True
+        return case(
+            (func.count(model.id) == 0, True),
+            else_=~func.bool_or(
+                model.type == job_type.value
             )
         ).label(self.get_label(job_id))
 

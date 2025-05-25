@@ -5,6 +5,7 @@ import asyncio
 
 from datasets import load_dataset
 
+from core.constants import TRAINING_URLS_HF_NAME
 from core.db.client import DatabaseClient
 
 
@@ -20,6 +21,6 @@ def load_urls_from_huggingface(dataset_name: str) -> list[str]:
 
 
 if __name__ == "__main__":
-    urls = load_urls_from_huggingface("PDAP/training-urls")
+    urls = load_urls_from_huggingface(TRAINING_URLS_HF_NAME)
     dbc = DatabaseClient()
     asyncio.run(dbc.add_urls(urls))

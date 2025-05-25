@@ -1,3 +1,4 @@
+import sys
 from enum import Enum
 from typing import List, Type, Optional
 
@@ -10,6 +11,7 @@ from core.nlp_processor.jobs.identifiers.base import JobIdentifierBase
 from core.nlp_processor.jobs.result.base import JobResultBase
 from core.nlp_processor.set.state import SetState
 from core.utils.exception import format_exception
+from loguru import logger
 
 class HandleErrorType(Enum):
     RAISE = 1
@@ -31,8 +33,14 @@ class RunManager:
         available_job_ids: List[JobIdentifierBase]
     ):
         run_job_ids = await self.db_client.get_run_jobs(available_job_ids)
+        if len(run_job_ids) == 0:
+            logger.info("No jobs to run; exiting")
+            return
+        logger.info(f"Running set with {len(run_job_ids)} unique jobs")
         set_state = await self.db_client.get_next_url_set(run_job_ids)
         while set_state is not None:
+            url_info = set_state.context.url_info
+            logger.info(f"Running set on URL {url_info.id}: {url_info.url}")
             await self.run_for_set(set_state)
             set_state = await self.db_client.get_next_url_set(run_job_ids)
 
@@ -74,7 +82,7 @@ class RunManager:
 
             msg = format_exception(e)
             msg = f"Job: {job_id.__name__}; Error: {msg}"
-            print(msg)
+            logger.error(msg)
             await self.db_client.add_url_error(
                 url_id=context.url_info.id,
                 error=msg,

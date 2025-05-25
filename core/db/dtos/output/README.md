@@ -1,0 +1,1 @@
+Output DTOs are used to return data from the database.

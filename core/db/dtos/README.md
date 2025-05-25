@@ -1,0 +1,1 @@
+This directory contains data transfer objects (DTOs) directly related to the database.

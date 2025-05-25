@@ -34,7 +34,8 @@ def get_enum_column_orm(
     return mapped_column(
         SAEnum(
             enum_class,
-            name=enum_name
+            name=enum_name,
+            values_callable=lambda obj: [e.value for e in obj]
         ),
         nullable=nullable
     )

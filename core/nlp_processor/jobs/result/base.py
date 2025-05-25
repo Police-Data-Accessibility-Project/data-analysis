@@ -3,7 +3,7 @@ from typing import Any, List
 
 from pydantic import BaseModel
 
-from core.db.models import FamilyModel
+from core.db.models.core import FamilyModel
 from core.nlp_processor.jobs.identifiers.base import JobIdentifierBase
 
 

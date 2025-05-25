@@ -1,4 +1,4 @@
-from core.db.models import HTMLMetadata, URLComponent, HTMLContentMetric, HTMLBagOfWords
+from core.db.models.core import HTMLMetadata, URLComponent, HTMLContentMetric, HTMLBagOfWords
 from core.nlp_processor.families.enum import FamilyType
 from core.nlp_processor.families.registry.core import FamilyRegistry
 from core.nlp_processor.families.registry.entry import FamilyRegistryEntry
