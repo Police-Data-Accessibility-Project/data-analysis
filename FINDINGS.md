@@ -33,7 +33,16 @@ Increasing the number of non-relevant URLs is not straightforward, as the sort o
 
 For example, targeted google searches will likely return a different kind of non-relevant URL as compared to pulling URLs at random from Common Crawl. And the non-relevant URLs which we receive by manual submission would likely be different as well.
 
-In any ML model we use, the utility of different features will likely change as the distribution of URLs changes as we receive more URLs through some sources and not through others. Because of this, ML models will need to be regularly retrained. We should also consider complementing them with rules-based models. 
+In any ML model we use, the utility of different features will likely change as the distribution of URLs changes as we receive more URLs through some sources and not through others. Because of this, ML models will need to be regularly retrained. 
+
+## Rules-based models can complement ML models.
+
+In some cases, we can apply simple heuristics and non-ML rules-based models to aid or replace ML labeling. Provided the rules are well-founded, this can be more effective than using ML, and more resistant to biases in data. In other cases, we can combine ML models with rules-based features.
+
+Potential avenues include:
+- A Machine Learning feature indicating whether the domain of the URL is already in our database, and how the associated URLs are classified.
+- Identifying the most-frequently referenced location as the location of the source.
+- Creating a blacklist of domains we are highly confident are not relevant (for example, news websites).
 
 # URL Components
 
