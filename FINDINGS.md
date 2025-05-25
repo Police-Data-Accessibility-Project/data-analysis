@@ -44,6 +44,18 @@ Potential avenues include:
 - Identifying the most-frequently referenced location as the location of the source.
 - Creating a blacklist of domains we are highly confident are not relevant (for example, news websites).
 
+## We do not have sufficient data for some ML models.
+
+Deep learning-based models such as Bert gain their strength from training on a large amount of data. Because the number of our URLs are numbered in the thousands, and we are unlikely to increase the number of our URLs by several powers of ten any time soon, deep learning models are likely not to be appropriate.
+
+Instead, we will need to rely on simpler models, such as Tree-based models or Naive Bayes models. 
+
+Such models also have the benefit of being trained more quickly and requiring less computational intensity, making them easier to iterate on and analyze. 
+
+## Some ML models are structurally unsuited to our task
+
+Some models (again, like Bert), are based in natural language processing, which is highly dependent on data being in sentence and paragraph format. HTMl data is often not in such a format. Consequently, such models would be unsuited to our task.
+
 # URL Components
 
 ## The majority of schemes are https, and this is unlikely to be relevant.
