@@ -1,0 +1,1 @@
+Mapper classes map a job result to one or more of a SQLAlchemy model

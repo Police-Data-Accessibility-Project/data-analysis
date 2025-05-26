@@ -1,1 +1,1 @@
-The family registry matches registries with their associated database model
+The family registry matches registries with their associated database model and job result class

@@ -1,7 +1,7 @@
 from core.nlp_processor.families.enum import FamilyType
 from core.nlp_processor.jobs.identifiers.base import JobIdentifierBase
 from core.nlp_processor.jobs.enums import HTMLBagOfWordsJobType, URLComponentJobType, HTMLMetadataJobType, \
-    HTMLContentMetricJobType
+    HTMLContentMetricJobType, HTMLTermTagCountsJobType
 
 
 class HTMLBagOfWordsJobIdentifier(JobIdentifierBase):
@@ -19,3 +19,7 @@ class HTMLMetadataJobIdentifier(JobIdentifierBase):
 class HTMLContentMetricJobIdentifier(JobIdentifierBase):
     family: FamilyType = FamilyType.HTML_CONTENT_METRIC
     job_type: HTMLContentMetricJobType
+
+class HTMLTermTagCountsJobIdentifier(JobIdentifierBase):
+    family: FamilyType = FamilyType.HTML_TERM_TAG_COUNTS
+    job_type: HTMLTermTagCountsJobType

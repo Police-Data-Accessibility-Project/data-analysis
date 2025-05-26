@@ -10,7 +10,7 @@ from core.db.enums import ErrorType, RecordTypeFine, RecordTypeCoarse
 from core.db.models.helpers import get_id_column_orm, get_created_at_column_orm, get_url_id_column_orm, \
     get_enum_column_orm
 from core.nlp_processor.jobs.enums import HTMLContentMetricJobType, HTMLMetadataJobType, URLComponentJobType, \
-    HTMLBagOfWordsJobType
+    HTMLBagOfWordsJobType, HTMLTermTagCountsJobType
 
 Base = declarative_base()
 
@@ -36,6 +36,7 @@ class URL(Base):
     html_metadata = sa.orm.relationship("HTMLMetadata", **url_relationship_kwargs)
     html_content_metrics = sa.orm.relationship("HTMLContentMetric", **url_relationship_kwargs)
     html_bag_of_words = sa.orm.relationship("HTMLBagOfWords", **url_relationship_kwargs)
+    html_term_tag_counts = sa.orm.relationship("HTMLTermTagCount", **url_relationship_kwargs)
     annotations = sa.orm.relationship("URLAnnotations", **url_relationship_kwargs)
 
 class URLDerivedModel(Base):
@@ -43,6 +44,12 @@ class URLDerivedModel(Base):
     id: Mapped[int] = get_id_column_orm()
     url_id: Mapped[int] = get_url_id_column_orm()
     created_at: Mapped[datetime] = get_created_at_column_orm()
+
+class StringMapModel(Base):
+    __abstract__ = True
+    id: Mapped[int] = get_id_column_orm()
+    name: Mapped[str] = sa.Column(sa.Text, nullable=False)
+
 
 class FamilyModel(URLDerivedModel):
     __abstract__ = True
@@ -160,3 +167,38 @@ class HTMLBagOfWords(FamilyModel):
 
     # Relationships
     url = get_single_url_relationship("html_bag_of_words")
+
+class HTMLTag(StringMapModel):
+    __tablename__ = "html_tags"
+
+    # Relationships
+    term_tag_counts = sa.orm.relationship("HTMLTermTagCount", back_populates="tag")
+
+class HTMLTerm(StringMapModel):
+    __tablename__ = "html_terms"
+
+    # Relationships
+    term_tag_counts = sa.orm.relationship("HTMLTermTagCount", back_populates="term")
+
+class HTMLTermTagCount(FamilyModel):
+    __tablename__ = "html_term_tag_counts"
+    type: Mapped[HTMLTermTagCountsJobType] = get_enum_column_orm(
+        HTMLTermTagCountsJobType,
+        enum_name='html_term_tag_counts_type',
+    )
+    tag_id: Mapped[Optional[int]] = sa.Column(
+        sa.Integer,
+        sa.ForeignKey('html_tags.id'),
+        nullable=True
+    )
+    term_id: Mapped[Optional[int]] = sa.Column(
+        sa.Integer,
+        sa.ForeignKey('html_terms.id'),
+        nullable=True
+    )
+    count = sa.Column(sa.Integer, nullable=False)
+
+    # Relationships
+    url = get_single_url_relationship("html_term_tag_counts")
+    tag = sa.orm.relationship("HTMLTag", uselist=False)
+    term = sa.orm.relationship("HTMLTerm", uselist=False)

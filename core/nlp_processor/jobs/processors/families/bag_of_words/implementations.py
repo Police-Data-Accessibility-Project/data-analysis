@@ -44,6 +44,8 @@ class ExtractHTMLBagOfWordsAllWordsProcessor(ExtractHTMLBagOfWordsProcessorTempl
     async def process(self) -> dict[str, int]:
         bag_of_words = {}
         for token in self.spacy_doc:
+            if not token.is_stop:
+                continue
             if not token.is_alpha:
                 continue
             text = token.lemma_.lower()

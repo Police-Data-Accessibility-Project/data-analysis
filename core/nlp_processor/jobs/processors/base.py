@@ -25,10 +25,6 @@ class JobProcessorBase(ABC):
     async def process(self) -> Any:
         pass
 
-    @abstractmethod
-    async def job_result_class(self) -> Type[JobResultBase]:
-        pass
-
     @property
     def url(self) -> str:
         return self.context.url_info.url

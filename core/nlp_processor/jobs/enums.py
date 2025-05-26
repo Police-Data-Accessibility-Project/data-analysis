@@ -45,3 +45,6 @@ class HTMLBagOfWordsJobType(JobTypeEnumBase):
     VERBS = "verbs"
     ADJECTIVES = "adjectives"
     ADVERBS = "adverbs"
+
+class HTMLTermTagCountsJobType(JobTypeEnumBase):
+    ALL_WORDS = "all_words"

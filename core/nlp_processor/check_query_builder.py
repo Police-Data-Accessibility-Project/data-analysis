@@ -21,7 +21,6 @@ class CheckQueryBuilder:
     def get_job_id_from_label(self, label: str) -> JobIdentifierBase:
         return self.label_id_lookup[label]
 
-
     def build_global_subquery(
         self,
         job_id: JobIdentifierBase,
@@ -79,6 +78,26 @@ class CheckQueryBuilder:
                 model.type == job_type.value
             )
         ).label(self.get_label(job_id))
+
+    def build_count_subquery(
+        self,
+        job_id: JobIdentifierBase,
+    ) -> Any:
+        """
+        Count how many URLs are missing the given job
+        :param job_id:
+        :return:
+        """
+        flag_subquery = self.build_flag_subquery(job_id)
+        return func.count(flag_subquery).label(self.get_label(job_id))
+
+    def build_bool_or_subquery(self, job_id: JobIdentifierBase) -> Any:
+        model = FAMILY_REGISTRY.get_model(job_id.family)
+        job_type = job_id.job_type
+        return func.bool_or(
+            model.type == job_type.value
+        ).label(self.get_label(job_id))
+
 
 
     @staticmethod

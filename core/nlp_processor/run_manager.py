@@ -2,6 +2,8 @@ import sys
 from enum import Enum
 from typing import List, Type, Optional
 
+import tqdm
+
 from core.db.client import DatabaseClient
 from core.db.enums import ErrorType
 from core.nlp_processor.set.context import SetContext
@@ -37,12 +39,20 @@ class RunManager:
             logger.info("No jobs to run; exiting")
             return
         logger.info(f"Running set with {len(run_job_ids)} unique jobs")
-        set_state = await self.db_client.get_next_url_set(run_job_ids)
-        while set_state is not None:
-            url_info = set_state.context.url_info
-            logger.info(f"Running set on URL {url_info.id}: {url_info.url}")
-            await self.run_for_set(set_state)
-            set_state = await self.db_client.get_next_url_set(run_job_ids)
+        run_sets = await self.db_client.get_all_url_sets(run_job_ids)
+        run_count = len(run_sets)
+        if run_count == 0:
+            logger.info("No URLs to process; exiting")
+            return
+        logger.info(f"Run count: {run_count}")
+        with tqdm.trange(run_count) as t:
+            for i in t:
+                set_state = run_sets[i]
+                url_info = set_state.context.url_info
+                t.set_description(f"URL {url_info.id}")
+                set_state.context.html = await self.db_client.get_html_for_url(url_info.id)
+                await self.run_for_set(set_state)
+                set_state.context.unload()
 
     async def run_for_set(self, set_state: SetState):
         job_results: List[JobResultBase] = []

@@ -1,3 +1,9 @@
+"""
+These define enums used primarily for
+internal representation in the database
+and which are otherwise not used in the logic
+"""
+
 from enum import Enum
 
 

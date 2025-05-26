@@ -1,0 +1,1 @@
+Direct mappers create a SQLAlchemy model using only the job result and the url id, and require no external dependencies.

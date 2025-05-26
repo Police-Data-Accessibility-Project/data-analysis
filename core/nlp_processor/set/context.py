@@ -18,7 +18,7 @@ class SetContext(BaseModel):
     model_config = ConfigDict(arbitrary_types_allowed=True)
 
     url_info: URLOutput
-    html: str
+    html: Optional[str]
     _soup: Optional[BeautifulSoup] = PrivateAttr(default=None)
     _spacy_doc: Optional[Doc] = PrivateAttr(default=None)
 
@@ -35,3 +35,9 @@ class SetContext(BaseModel):
             text = self.soup.get_text(separator=' ', strip=True)
             self._spacy_doc = SPACY_MODEL(text)
         return self._spacy_doc
+
+    def unload(self):
+        """Free up memory by discarding cached content."""
+        self.html = None
+        self._soup = None
+        self._spacy_doc = None

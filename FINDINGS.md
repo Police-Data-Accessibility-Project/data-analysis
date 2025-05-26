@@ -56,6 +56,10 @@ Such models also have the benefit of being trained more quickly and requiring le
 
 Some models (again, like Bert), are based in natural language processing, which is highly dependent on data being in sentence and paragraph format. HTMl data is often not in such a format. Consequently, such models would be unsuited to our task.
 
+## Web domains should be used as a feature
+
+We often return multiple results from a single domain. Because web pages belonging to certain domains often have similar structures and wording from page to page, we should utilize the domain as a feature to ensure our models don't generalize across domains.
+
 # URL Components
 
 ## The majority of schemes are https, and this is unlikely to be relevant.

@@ -1,21 +1,22 @@
 from functools import wraps
-from typing import Optional, List, Dict
+from typing import List, Dict
 
 from environs import Env
 from sqlalchemy import select, update, or_
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from core.db.dtos.input.url_annotations import URLAnnotationsInput
-from core.utils.compression import decompress_html, compress_html
-from core.db.dtos.input.url_html import URLHTMLInput
 from core.db.dtos.output.url import URLOutput
 from core.db.enums import ErrorType
 from core.db.models.core import URL, URLFullHTML, URLError, URLCompressedHTML, URLAnnotations
 from core.nlp_processor.check_query_builder import CheckQueryBuilder
+from core.nlp_processor.families.registry.instances import FAMILY_REGISTRY
 from core.nlp_processor.jobs.identifiers.base import JobIdentifierBase
+from core.nlp_processor.jobs.mapper.map import map_job_result_to_models
 from core.nlp_processor.jobs.result.base import JobResultBase
 from core.nlp_processor.set.context import SetContext
 from core.nlp_processor.set.state import SetState
+from core.utils.compression import decompress_html, compress_html
 
 
 def get_postgres_connection_string():
@@ -116,34 +117,6 @@ class DatabaseClient:
         )
 
     @session_manager
-    async def get_next_uncompressed_html(self, session: AsyncSession) -> Optional[URLHTMLInput]:
-        execution_result = await session.execute(
-            select(
-                URL.id,
-                URLFullHTML.html,
-            )
-            .join(URLFullHTML)
-            .outerjoin(URLCompressedHTML)
-            .where(URLFullHTML.html != None)
-            .where(URLCompressedHTML.id.is_(None))
-            .limit(1)
-        )
-        row = execution_result.mappings().one_or_none()
-
-        if row is None:
-            return None
-
-        return URLHTMLInput(
-            url_id=row["id"],
-            html=row["html"],
-        )
-
-    @session_manager
-    async def add_compressed_html(self, session: AsyncSession, url_id: int, compressed_html: bytes):
-        url_compressed_html = URLCompressedHTML(url_id=url_id, compressed_html=compressed_html)
-        session.add(url_compressed_html)
-
-    @session_manager
     async def get_run_jobs(
         self,
         session: AsyncSession,
@@ -174,28 +147,21 @@ class DatabaseClient:
 
         return missing_jobs
 
+
     @session_manager
-    async def get_next_url_set(
+    async def get_all_url_sets(
         self,
         session: AsyncSession,
         job_ids: List[JobIdentifierBase]
-    ) -> Optional[SetState]:
-        """
-        Get the set of jobs for this URL, aka all jobs which have NOT yet been performed on this URL
-        :param session:
-        :param job_ids:
-        :return:
-        """
+    ) -> List[SetState]:
+
         if len(job_ids) == 0:
             return None
-
         builder = CheckQueryBuilder(job_ids)
         select_subqueries = builder.get_flag_select_subqueries()
-
         query = select(
             URL.id,
             URL.url,
-            URLCompressedHTML.compressed_html,
             *select_subqueries
         ).join(
             URLCompressedHTML
@@ -204,40 +170,38 @@ class DatabaseClient:
         # Outer join for every family with jobs present
         query = builder.add_family_outer_joins(query)
 
-        # Finalize Query
         query = query.group_by(
             URL.id,
             URL.url,
-            URLCompressedHTML.compressed_html
         ).having(
             or_(
                 *select_subqueries
             )
-        ).limit(1)
+        )
 
         execution_result = await session.execute(query)
-        row = execution_result.mappings().one_or_none()
+        row = execution_result.mappings().all()
 
-        if row is None:
-            return None
+        set_states = []
+        for row in row:
+            set_jobs = []
+            for label in builder.get_all_labels():
+                url_missing_job = row[label]
+                if url_missing_job:
+                    job_id = builder.get_job_id_from_label(label)
+                    set_jobs.append(job_id)
 
-        set_jobs = []
-        for label in builder.get_all_labels():
-            url_missing_job = row[label]
-            if url_missing_job:
-                job_id = builder.get_job_id_from_label(label)
-                set_jobs.append(job_id)
-
-        return SetState(
-            context=SetContext(
-                url_info=URLOutput(
-                    id=row["id"],
-                    url=row["url"],
+            set_states.append(SetState(
+                context=SetContext(
+                    url_info=URLOutput(
+                        id=row["id"],
+                        url=row["url"],
+                    ),
+                    html=None,
                 ),
-                html=decompress_html(row["compressed_html"]),
-            ),
-            job_ids=set_jobs
-        )
+                job_ids=set_jobs
+            ))
+        return set_states
 
     @session_manager
     async def upload_jobs_for_set(
@@ -249,7 +213,14 @@ class DatabaseClient:
 
         all_models = []
         for job_result in job_results:
-            models = job_result.get_as_models(url_id)
+            family_type = job_result.job_id.family
+            mapper = FAMILY_REGISTRY.get_mapper_class(family_type)
+            models = await map_job_result_to_models(
+                job_result=job_result,
+                mapper_class=mapper,
+                url_id=url_id,
+                session=session
+            )
             all_models.extend(models)
 
         session.add_all(all_models)
@@ -263,6 +234,23 @@ class DatabaseClient:
         )
         raw_results = execution_result.all()
         return {url: id_ for id_, url in raw_results}
+
+    @session_manager
+    async def get_html_for_url(
+        self,
+        session: AsyncSession,
+        url_id: int
+    ) -> str:
+        query = (
+            select(URLCompressedHTML.compressed_html)
+            .where(URLCompressedHTML.url_id == url_id)
+        )
+        execution_result = await session.execute(query)
+        row = execution_result.mappings().one_or_none()
+        if row is None:
+            return None
+        return decompress_html(row["compressed_html"])
+
 
     @session_manager
     async def add_annotations(

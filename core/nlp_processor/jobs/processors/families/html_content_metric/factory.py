@@ -4,20 +4,6 @@ from core.nlp_processor.jobs.processors.families.html_content_metric._template i
     ExtractHTMLContentMetricProcessorTemplate
 from core.nlp_processor.jobs.enums import HTMLContentMetricJobType
 
-# TODO: Deprecated: Delete after using as reference
-def make_html_content_metric_single_tag_processor(metric_type: HTMLContentMetricJobType):
-
-    class ExtractHTMLMetricProcessor(ExtractHTMLContentMetricProcessorTemplate):
-        async def process(self) -> int:
-            soup = self.context.soup
-            tag_str = metric_type.value.replace("_tags", "")
-            return len(soup.find_all(tag_str))
-
-    ExtractHTMLMetricProcessor.__name__ = (
-        f"ExtractHTML{metric_type.name}MetricProcessor"
-    )
-    return ExtractHTMLMetricProcessor
-
 def make_html_content_metric_link_direction_processor(
     metric_type: HTMLContentMetricJobType,
     is_external: bool
