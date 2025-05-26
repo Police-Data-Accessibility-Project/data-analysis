@@ -28,13 +28,13 @@
   
 ## Families
 
-| Family                | Description                                                              | Associated Table         |
-|-----------------------|--------------------------------------------------------------------------|--------------------------|
-| URL Component         | Extracts information from the URL, such as scheme, domain, and path      | `url_components`         |
-| HTML Content Metrics  | Extracts integer-based metrics, like number of proper nouns or locations | `html_content_metrics`   |
-| HTML Metadata         | Extracts metadata like title, description, and keywords from the HTML    | `html_metadata`          |
-| Bag-of-Words          | Extracts bag-of-words features from the HTML                             | `bag_of_words`           |
-| Bag-of-Words by type | Extracts bag-of-words features from the HTML, subdividing by HTML type   | `bag_of_words_by_type`   |
+| Family               | Description                                                              | Associated Table         |
+|----------------------|--------------------------------------------------------------------------|--------------------------|
+| URL Component        | Extracts information from the URL, such as scheme, domain, and path      | `url_components`         |
+| HTML Content Metrics | Extracts integer-based metrics, like number of proper nouns or locations | `html_content_metrics`   |
+| HTML Metadata        | Extracts metadata like title, description, and keywords from the HTML    | `html_metadata`          |
+| Bag-of-Words         | Extracts bag-of-words features from the HTML                             | `bag_of_words`           |
+| HTML Term Tag Counts | Identifies the number of words that were a child of a given tag.         | `html_term_tag_counts_type`   |
 
 ## Adding a new Job
 
