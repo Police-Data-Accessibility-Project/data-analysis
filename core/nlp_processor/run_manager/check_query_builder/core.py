@@ -1,8 +1,9 @@
-from typing import Type, Any
+from typing import Any
 
-from sqlalchemy import func, case, exists, and_, select, or_
+from sqlalchemy import func, exists, and_, select
 
 from core.db.models.core import URL, URLCompressedHTML
+from core.nlp_processor.run_manager.check_query_builder.dtos.flag_query import FlagQuery
 from core.nlp_processor.families.registry.instances import FAMILY_REGISTRY
 from core.nlp_processor.jobs.identifiers.base import JobIdentifierBase
 
@@ -50,53 +51,45 @@ class CheckQueryBuilder:
             )
         ).label(label)
 
-    def get_flag_select_subqueries(self) -> list[Any]:
-        subqueries = []
+    def get_flag_select_subqueries(self) -> list[FlagQuery]:
+        sqs = []
         for job_id in self.job_ids:
-            subqueries.append(self.build_flag_subquery(job_id))
-        return subqueries
+            cte = self.build_flag_cte(job_id)
+            label = self.get_label(job_id)
+            select = func.coalesce(
+                cte.c[label], True
+            ).label(label)
+            sqs.append(
+                FlagQuery(
+                    cte=cte,
+                    label=label,
+                    select=select
+                )
+            )
+        return sqs
 
-    def add_family_outer_joins(self, query):
-        family_set = set()
-        for job_id in self.job_ids:
-            family_set.add(job_id.family)
-        for family in family_set:
-            model = FAMILY_REGISTRY.get_model(family)
-            query = query.outerjoin(model)
+    def add_cte_outer_joins(self, query, sqs: list[FlagQuery]):
+        for sq in sqs:
+            cte = sq.cte
+            query = query.outerjoin(
+                cte,
+                cte.c.url_id == URL.id
+            )
         return query
 
-
-    def build_flag_subquery(
+    def build_flag_cte(
         self,
         job_id: JobIdentifierBase,
     ) -> Any:
         model = FAMILY_REGISTRY.get_model(job_id.family)
         job_type = job_id.job_type
-        return case(
-            (func.count(model.id) == 0, True),
-            else_=~func.bool_or(
+        label = self.get_label(job_id)
+        return select(
+            model.url_id,
+            ~func.bool_or(
                 model.type == job_type.value
-            )
-        ).label(self.get_label(job_id))
-
-    def build_count_subquery(
-        self,
-        job_id: JobIdentifierBase,
-    ) -> Any:
-        """
-        Count how many URLs are missing the given job
-        :param job_id:
-        :return:
-        """
-        flag_subquery = self.build_flag_subquery(job_id)
-        return func.count(flag_subquery).label(self.get_label(job_id))
-
-    def build_bool_or_subquery(self, job_id: JobIdentifierBase) -> Any:
-        model = FAMILY_REGISTRY.get_model(job_id.family)
-        job_type = job_id.job_type
-        return func.bool_or(
-            model.type == job_type.value
-        ).label(self.get_label(job_id))
+            ).label(label)
+        ).group_by(model.url_id).cte(label)
 
 
 

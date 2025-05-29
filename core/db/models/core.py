@@ -1,18 +1,14 @@
-from abc import abstractmethod
 from datetime import datetime
-from enum import Enum
-from typing import Any, Optional
+from typing import Optional
 
 import sqlalchemy as sa
 from sqlalchemy.orm import declarative_base, Mapped
 
 from core.db.enums import ErrorType, RecordTypeFine, RecordTypeCoarse
-from core.db.models.helpers import get_id_column_orm, get_created_at_column_orm, get_url_id_column_orm, \
-    get_enum_column_orm
+from core.db.models.base import URLDerivedModel, StringMapModel, FamilyModel, Base
+from core.db.models.helpers import get_id_column_orm, get_created_at_column_orm, get_enum_column_orm
 from core.nlp_processor.jobs.enums import HTMLContentMetricJobType, HTMLMetadataJobType, URLComponentJobType, \
-    HTMLBagOfWordsJobType, HTMLTermTagCountsJobType
-
-Base = declarative_base()
+    HTMLBagOfWordsJobType, HTMLTermTagCountsJobType, HTMLBagOfTagsJobType
 
 url_relationship_kwargs = dict(
     cascade="all, delete-orphan",
@@ -36,38 +32,9 @@ class URL(Base):
     html_metadata = sa.orm.relationship("HTMLMetadata", **url_relationship_kwargs)
     html_content_metrics = sa.orm.relationship("HTMLContentMetric", **url_relationship_kwargs)
     html_bag_of_words = sa.orm.relationship("HTMLBagOfWords", **url_relationship_kwargs)
+    html_bag_of_tags = sa.orm.relationship("HTMLBagOfTags", **url_relationship_kwargs)
     html_term_tag_counts = sa.orm.relationship("HTMLTermTagCount", **url_relationship_kwargs)
     annotations = sa.orm.relationship("URLAnnotations", **url_relationship_kwargs)
-
-class URLDerivedModel(Base):
-    __abstract__ = True
-    id: Mapped[int] = get_id_column_orm()
-    url_id: Mapped[int] = get_url_id_column_orm()
-    created_at: Mapped[datetime] = get_created_at_column_orm()
-
-class StringMapModel(Base):
-    __abstract__ = True
-    id: Mapped[int] = get_id_column_orm()
-    name: Mapped[str] = sa.Column(sa.Text, nullable=False)
-
-
-class FamilyModel(URLDerivedModel):
-    __abstract__ = True
-
-    @property
-    @abstractmethod
-    def type(self) -> Enum:
-        pass
-
-    @property
-    @abstractmethod
-    def value(self) -> Any:
-        pass
-
-    @property
-    @abstractmethod
-    def url(self) -> URL:
-        pass
 
 
 def get_single_url_relationship(back_populates_name: str) -> Mapped[URL]:
@@ -162,11 +129,33 @@ class HTMLBagOfWords(FamilyModel):
         HTMLBagOfWordsJobType,
         enum_name="html_bag_of_words_type",
     )
-    term: Mapped[Optional[str]] = sa.Column(sa.Text, nullable=True)
+    term_id: Mapped[Optional[int]] = sa.Column(
+        sa.Integer,
+        sa.ForeignKey('html_terms.id'),
+        nullable=True
+    )
     count = sa.Column(sa.Integer, nullable=False)
 
     # Relationships
     url = get_single_url_relationship("html_bag_of_words")
+    term = sa.orm.relationship("HTMLTerm", uselist=False)
+
+class HTMLBagOfTags(FamilyModel):
+    __tablename__ = "html_bag_of_tags"
+    type: Mapped[HTMLBagOfTagsJobType] = get_enum_column_orm(
+        HTMLBagOfTagsJobType,
+        enum_name="html_bag_of_tags_type",
+    )
+    tag_id: Mapped[Optional[int]] = sa.Column(
+        sa.Integer,
+        sa.ForeignKey('html_tags.id'),
+        nullable=True
+    )
+    count = sa.Column(sa.Integer, nullable=False)
+
+    # Relationships
+    url = get_single_url_relationship("html_bag_of_tags")
+    tag = sa.orm.relationship("HTMLTag", uselist=False)
 
 class HTMLTag(StringMapModel):
     __tablename__ = "html_tags"

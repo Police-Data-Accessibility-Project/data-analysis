@@ -1,23 +1,21 @@
 from core.nlp_processor.jobs.identifiers.implementations import HTMLBagOfWordsJobIdentifier
-from core.nlp_processor.jobs.processors.families.bag_of_words.implementations import \
-    ExtractHTMLBagOfWordsLocationsProcessor, ExtractHTMLBagOfWordsPersonsProcessor, ExtractHTMLBagOfWordsVerbsProcessor, \
-    ExtractHTMLBagOfWordsCommonNounsProcessor, ExtractHTMLBagOfWordsProperNounsProcessor, \
-    ExtractHTMLBagOfWordsAdjectivesProcessor, ExtractHTMLBagOfWordsAdverbsProcessor, \
-    ExtractHTMLBagOfWordsAllWordsProcessor, ExtractHTMLBagOfWordsAllTagsProcessor
 from core.nlp_processor.jobs.enums import HTMLBagOfWordsJobType
+from core.nlp_processor.jobs.processors.families.html_bag_of_tags.implementations import \
+    ExtractHTMLBagOfWordsAllTagsProcessor
+from core.nlp_processor.jobs.processors.families.html_bag_of_words.implementations import \
+    ExtractHTMLBagOfWordsAllWordsProcessor, ExtractHTMLBagOfWordsLocationsProcessor, \
+    ExtractHTMLBagOfWordsCommonNounsProcessor, ExtractHTMLBagOfWordsPersonsProcessor, \
+    ExtractHTMLBagOfWordsVerbsProcessor, ExtractHTMLBagOfWordsProperNounsProcessor, \
+    ExtractHTMLBagOfWordsAdverbsProcessor, ExtractHTMLBagOfWordsAdjectivesProcessor
 from core.nlp_processor.jobs.registry.entry import JobRegistryEntry
 
 def get_identifier(job_type: HTMLBagOfWordsJobType) -> HTMLBagOfWordsJobIdentifier:
     return HTMLBagOfWordsJobIdentifier(job_type=job_type)
 
-BAG_OF_WORDS_JOBS = [
+HTML_BAG_OF_WORDS_JOBS = [
     JobRegistryEntry(
         identifier=get_identifier(HTMLBagOfWordsJobType.ALL_WORDS),
         processor=ExtractHTMLBagOfWordsAllWordsProcessor
-    ),
-    JobRegistryEntry(
-        identifier=get_identifier(HTMLBagOfWordsJobType.ALL_TAGS),
-        processor=ExtractHTMLBagOfWordsAllTagsProcessor
     ),
     JobRegistryEntry(
         identifier=get_identifier(HTMLBagOfWordsJobType.LOCATIONS),

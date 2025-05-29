@@ -1,6 +1,6 @@
 from abc import ABC, abstractmethod
 
-from core.db.models.core import FamilyModel
+from core.db.models.base import FamilyModel
 
 
 class JobResultMapperBase(ABC):

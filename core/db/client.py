@@ -9,7 +9,7 @@ from core.db.dtos.input.url_annotations import URLAnnotationsInput
 from core.db.dtos.output.url import URLOutput
 from core.db.enums import ErrorType
 from core.db.models.core import URL, URLFullHTML, URLError, URLCompressedHTML, URLAnnotations
-from core.nlp_processor.check_query_builder import CheckQueryBuilder
+from core.nlp_processor.run_manager.check_query_builder import CheckQueryBuilder
 from core.nlp_processor.families.registry.instances import FAMILY_REGISTRY
 from core.nlp_processor.jobs.identifiers.base import JobIdentifierBase
 from core.nlp_processor.jobs.mapper.map import map_job_result_to_models
@@ -158,24 +158,22 @@ class DatabaseClient:
         if len(job_ids) == 0:
             return None
         builder = CheckQueryBuilder(job_ids)
-        select_subqueries = builder.get_flag_select_subqueries()
+        sqs = builder.get_flag_select_subqueries()
+        select_statements = [sq.select for sq in sqs]
         query = select(
             URL.id,
             URL.url,
-            *select_subqueries
+            *select_statements,
         ).join(
             URLCompressedHTML
         )
 
         # Outer join for every family with jobs present
-        query = builder.add_family_outer_joins(query)
+        query = builder.add_cte_outer_joins(query, sqs)
 
-        query = query.group_by(
-            URL.id,
-            URL.url,
-        ).having(
+        query = query.where(
             or_(
-                *select_subqueries
+                *select_statements
             )
         )
 

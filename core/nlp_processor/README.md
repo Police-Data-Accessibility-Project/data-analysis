@@ -50,29 +50,30 @@ Each job is dynamically incorporated into the existing workflow. To ensure a job
 1. Using Alembic, create a new table in the database
 2. Create a new SQLAlchemy model in `core/nlp_processor/families/registry/models.py`, inheriting from `FamilyModelBase`
 
-#### (III) Create a Job Result Class 
+#### (III) Add a new job identifier
+1. Add a new subclass of `JobIdentifierBase` to `core/nlp_processor/jobs/identifiers/implementations.py`
+
+#### (IV) Create a Job Result Class 
 
 1. Create a new directory in `core/nlp_processor/jobs/result/implementations`
 2. Within the new directory:
   3. Create a new `core.py`, inheriting from `JobResultBase`
   4. Add any supporting classes as needed in separate files 
 
-#### (IV) Create a new Job Result Mapper
+#### (V) Create a new Job Result Mapper
 
 1. In `core/nlp_processor/jobs/mapper`, in either the `direct` or `lookup` subdirectories:
   2. Create a new `factory.py` or `factories.py` file, or add to an existing one, if needed
-  3. Add a new entry to the `implementations.py` file, inheriting from the associated `base.py` and `protocol.py`
+  3. Add a new `{family_name}.py` file to the `implementations` directory or `implementations.py` file, inheriting from the associated `base.py`
 
-#### (V) Add a new family registry entry
+#### (VI) Add a new family registry entry
 1. Add a new entry to `core/nlp_processor/families/registry/instances.py` that connects the family enum type, the SQLAlchemy model, the job result class, and the job result mapper
 
-#### (VI) Add a new job type registry file
+#### (VII) Add a new job type registry file
 1. Create a new file in `core/nlp_processor/jobs/registry/instances/{family_name}.py`
 2. Within the new file, create a new list that will encompass all registry entries for that family
 3. Import that list into `core/nlp_processor/jobs/registry/instances/all.py` and add it to the `JOB_REGISTRY`
 
-#### (VII) Add a new job identifier
-1. Add a new subclass of `JobIdentifierBase` to `core/nlp_processor/jobs/identifiers/implementations.py`
 
 #### (VIII) Add a new job processor folder and template
 1. Create a new directory in `core/nlp_processor/jobs/processors/families/`

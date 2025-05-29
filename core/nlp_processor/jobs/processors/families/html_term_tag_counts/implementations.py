@@ -1,48 +1,64 @@
-import gc
+from bs4 import Tag
 
 from core.nlp_processor.globals import SPACY_MODEL
 from core.nlp_processor.jobs.processors.base import JobProcessorBase
 from core.nlp_processor.jobs.result.implementations.html_term_tag_counts.store import TermTagStore
 
 
-
 class HTMLTermTagCountsProcessor(JobProcessorBase):
-    GARBAGE_COLLECT_INTERVAL = 500
-    EXCLUDED_TAGS = {
-        'script',
-        'style',
-        'link',
-        'html',
-    }
+    EXCLUDED_TAGS = [
+        "html",
+        "script",
+        "link",
+        "head",
+        "meta",
+        "style",
+    ]
+
+    @staticmethod
+    def get_direct_text(tag: Tag) -> str:
+        return " ".join(
+            t.strip() for t in tag.find_all(string=True, recursive=False) if t.strip()
+        )
 
 
     async def process(self) -> TermTagStore:
         store = TermTagStore()
         soup = self.soup
-        for idx, tag in enumerate(soup.find_all(True)):
-            if tag.name is None:
+
+        texts_to_process = []
+        tag_paths = []
+
+        for tag in soup.find_all(True):
+            tag_name = tag.name
+            if not tag_name:
                 continue
-            tag_name = str(tag.name).lower()
+            tag_name = tag_name.lower()
             if tag_name in self.EXCLUDED_TAGS:
                 continue
-            text = tag.get_text(separator=' ', strip=True)
-            if not text:
+
+            direct_text = self.get_direct_text(tag)
+            if not direct_text:
                 continue
 
-            doc = SPACY_MODEL(text)
+            texts_to_process.append(direct_text)
+            # Add tag and its parents
+            tag_paths.append(
+                [
+                    t.name.lower()
+                    for t in [tag] + list(tag.parents)
+                    if t.name is not None
+                ]
+            )
 
+        for doc, tag_path in zip(SPACY_MODEL.pipe(texts_to_process, batch_size=32), tag_paths):
             for token in doc:
-                if not token.is_alpha:
+                if not token.is_alpha or token.is_stop:
                     continue
-                if not token.is_stop:
-                    continue
-
-                term = token.lemma_.lower()
-                store.add(term, tag_name)
-
-            # Delete and occasionally garbage collect to keep memory usage down
-            del doc
-            if idx % self.GARBAGE_COLLECT_INTERVAL == 0:
-                gc.collect()
+                lemma = token.lemma_.lower()
+                for tag_name in tag_path:
+                    if tag_name in self.EXCLUDED_TAGS:
+                        continue
+                    store.add(lemma, tag_name)
 
         return store

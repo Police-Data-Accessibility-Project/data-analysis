@@ -1,9 +1,8 @@
-from collections import Counter
-
-from core.nlp_processor.jobs.processors.families.bag_of_words._template import ExtractHTMLBagOfWordsProcessorTemplate
-from core.nlp_processor.jobs.processors.families.bag_of_words.factories import make_nlp_bag_of_words_entity_processor, \
-    make_nlp_bag_of_words_part_of_speech_processor
 from core.nlp_processor.jobs.enums import HTMLBagOfWordsJobType
+from core.nlp_processor.jobs.processors.families.html_bag_of_words._template import \
+    ExtractHTMLBagOfWordsProcessorTemplate
+from core.nlp_processor.jobs.processors.families.html_bag_of_words.factories import \
+    make_nlp_bag_of_words_entity_processor, make_nlp_bag_of_words_part_of_speech_processor
 
 ExtractHTMLBagOfWordsLocationsProcessor = make_nlp_bag_of_words_entity_processor(
     type_=HTMLBagOfWordsJobType.LOCATIONS,
@@ -44,17 +43,10 @@ class ExtractHTMLBagOfWordsAllWordsProcessor(ExtractHTMLBagOfWordsProcessorTempl
     async def process(self) -> dict[str, int]:
         bag_of_words = {}
         for token in self.spacy_doc:
-            if not token.is_stop:
+            if token.is_stop:
                 continue
             if not token.is_alpha:
                 continue
             text = token.lemma_.lower()
             bag_of_words[text] = bag_of_words.get(text, 0) + 1
         return bag_of_words
-
-class ExtractHTMLBagOfWordsAllTagsProcessor(ExtractHTMLBagOfWordsProcessorTemplate):
-    async def process(self) -> dict[str, int]:
-        tag_names = [tag.name for tag in self.soup.find_all(True)]
-        if len(tag_names) == 0:
-            return {}
-        return dict(Counter(tag_names))

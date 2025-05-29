@@ -6,6 +6,7 @@ import asyncio
 
 from aiohttp import ClientSession, ClientResponseError
 from tqdm import tqdm
+from yarl import URL
 
 from core.db.client import DatabaseClient
 from core.db.enums import ErrorType
@@ -19,6 +20,14 @@ async def main():
     async with ClientSession() as session:
         fetcher = URLHTMLFetcher(session)
         for url_info in tqdm(url_infos):
+            if url_info.url.endswith('.csv'):
+                continue
+            if url_info.url.endswith('.json'):
+                continue
+            if url_info.url.endswith('.xml'):
+                continue
+            if url_info.url.endswith('.pdf'):
+                continue
             try:
                 html = await fetcher.fetch_html(url_info.url)
                 await dbc.add_html(

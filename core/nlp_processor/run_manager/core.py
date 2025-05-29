@@ -1,23 +1,18 @@
-import sys
-from enum import Enum
 from typing import List, Type, Optional
 
 import tqdm
+from loguru import logger
 
 from core.db.client import DatabaseClient
 from core.db.enums import ErrorType
-from core.nlp_processor.set.context import SetContext
 from core.nlp_processor.families.registry.instances import FAMILY_REGISTRY
-from core.nlp_processor.jobs.registry.instances.all import JOB_REGISTRY
 from core.nlp_processor.jobs.identifiers.base import JobIdentifierBase
+from core.nlp_processor.jobs.registry.instances.all import JOB_REGISTRY
 from core.nlp_processor.jobs.result.base import JobResultBase
+from core.nlp_processor.run_manager.enums import HandleErrorType
+from core.nlp_processor.set.context import SetContext
 from core.nlp_processor.set.state import SetState
 from core.utils.exception import format_exception
-from loguru import logger
-
-class HandleErrorType(Enum):
-    RAISE = 1
-    LOG = 2
 
 
 class RunManager:

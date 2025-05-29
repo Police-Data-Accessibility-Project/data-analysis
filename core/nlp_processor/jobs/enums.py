@@ -37,7 +37,6 @@ class HTMLContentMetricJobType(JobTypeEnumBase):
 
 class HTMLBagOfWordsJobType(JobTypeEnumBase):
     ALL_WORDS = "all_words"
-    ALL_TAGS = "all_tags"
     LOCATIONS = "locations"
     PERSONS = "persons"
     COMMON_NOUNS = "common_nouns"
@@ -45,6 +44,9 @@ class HTMLBagOfWordsJobType(JobTypeEnumBase):
     VERBS = "verbs"
     ADJECTIVES = "adjectives"
     ADVERBS = "adverbs"
+
+class HTMLBagOfTagsJobType(JobTypeEnumBase):
+    ALL_TAGS = "all_tags"
 
 class HTMLTermTagCountsJobType(JobTypeEnumBase):
     ALL_WORDS = "all_words"

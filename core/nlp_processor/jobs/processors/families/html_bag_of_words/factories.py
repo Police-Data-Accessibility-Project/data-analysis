@@ -1,5 +1,7 @@
-from core.nlp_processor.jobs.processors.families.bag_of_words._template import ExtractHTMLBagOfWordsProcessorTemplate
 from core.nlp_processor.jobs.enums import HTMLBagOfWordsJobType
+from core.nlp_processor.jobs.processors.families.html_bag_of_words._template import \
+    ExtractHTMLBagOfWordsProcessorTemplate
+
 
 def make_nlp_bag_of_words_entity_processor(
     type_: HTMLBagOfWordsJobType,
