@@ -1,0 +1,1 @@
+Parameter DTOs encapsulate the parameters for a given function or class. 

@@ -1,0 +1,1 @@
+This directory contains components shared amongst multiple high-level directories.

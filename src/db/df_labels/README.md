@@ -1,0 +1,1 @@
+Dataframe labels are frozen dataclasses which represent the labels for a given dataframe. These are used in lieu of string literals to make the code more readable and less error-prone.
