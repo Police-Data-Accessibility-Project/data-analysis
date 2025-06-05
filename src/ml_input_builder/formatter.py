@@ -1,4 +1,3 @@
-from scipy.sparse import csr_matrix
 from sklearn.preprocessing import LabelEncoder
 
 from src.db.df_labels.bag_of_words import BagOfWordsBaseLabels
@@ -27,19 +26,19 @@ class Formatter:
         df[lab_idx.term_idx] = term_encoder.fit_transform(df[lab_base.term_id])
 
         params = CSRMatrixParams(
-            data=df[lab_base.tf_idf],
-            row=df[lab_idx.url_idx],
-            col=df[lab_idx.term_idx],
+            data=df[lab_base.tf_idf].to_numpy(),
+            row=df[lab_idx.url_idx].to_numpy(),
+            col=df[lab_idx.term_idx].to_numpy(),
             shape=(
-                df[lab_idx.url_idx].nunique(),
-                df[lab_idx.term_idx].nunique()
+                df[lab_idx.url_idx].n_unique(),
+                df[lab_idx.term_idx].n_unique()
             )
         )
 
         sparse_matrix = params.to_csr()
 
         # Extract labels
-        df = df.drop_duplicates(lab_idx.url_idx).sort_values(lab_idx.url_idx)
+        df = df.unique(subset=[lab_idx.url_idx]).sort([lab_idx.url_idx])
 
         return BagOfWordsIntermediate(
             sparse_matrix=sparse_matrix,

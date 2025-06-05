@@ -1,6 +1,6 @@
 from typing import TypeVar, Generic
 
-import pandas as pd
+import polars as pl
 from pydantic import BaseModel
 
 from src.shared.bases.pydantic.df_labels import DataFrameLabelsBase
@@ -12,9 +12,9 @@ LabelType = TypeVar("LabelType", bound=DataFrameLabelsBase)
 
 class LabeledDataFrame(BaseModel, Generic[LabelType]):
     """
-    A pandas DataFrame along with column labels
+    A polars DataFrame along with column labels
     """
-    df: pd.DataFrame
+    df: pl.DataFrame
     labels: LabelType
 
     class Config:

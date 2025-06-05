@@ -23,7 +23,7 @@ from src.nlp_processor.run_manager.check_query_builder.core import CheckQueryBui
 from src.nlp_processor.set.context import SetContext
 from src.nlp_processor.set.state import SetState
 from src.utils.compression import decompress_html, compress_html
-import pandas as pd
+import polars as pl
 
 def get_postgres_connection_string():
     env = Env()
@@ -89,11 +89,6 @@ class DatabaseClient:
     async def execute_scalar(self, session: AsyncSession, query: Select):
         result = await session.execute(query)
         return result.scalar()
-
-    async def get_as_pandas(self, query: Select) -> pd.DataFrame:
-        result = await self.execute_all(query)
-        return pd.DataFrame(result)
-
 
     @session_manager
     async def add_urls(self, session: AsyncSession, urls: list[str]):
@@ -476,7 +471,7 @@ class DatabaseClient:
         result = await self.execute_all(session=session, query=final_query)
 
         return LabeledDataFrame(
-            df=pd.DataFrame(result),
+            df=pl.DataFrame(result),
             labels=labels
         )
 

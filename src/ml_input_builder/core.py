@@ -4,7 +4,6 @@ Formats results into an ML-ingestable format.
 import asyncio
 
 import joblib
-import pandas as pd
 
 from src.db.client import DatabaseClient
 from src.db.dtos.labeled_data_frame import LabeledDataFrame
