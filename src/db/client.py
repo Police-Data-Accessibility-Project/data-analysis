@@ -1,6 +1,6 @@
 from functools import wraps
 from operator import and_
-from typing import List, Dict
+from typing import List, Dict, Any
 
 from environs import Env
 from sqlalchemy import select, update, or_, Select, func, exists, literal, literal_column, Column, ColumnElement, cast, \
@@ -14,6 +14,8 @@ from src.db.dtos.output.url import URLOutput
 from src.db.enums import ErrorType
 from src.db.models.core import URL, URLFullHTML, URLError, URLCompressedHTML, URLAnnotations, HTMLBagOfWords
 from src.db.df_labels.bag_of_words import BagOfWordsBaseLabels
+from src.db.queries.builder import QueryBuilderBase
+from src.db.queries.ml_input_builder.bag_of_words_.bag_of_words import BagOfWordsMLInputQueryBuilder
 from src.nlp_processor.families.registry.instances import FAMILY_REGISTRY
 from src.nlp_processor.jobs.enums import HTMLBagOfWordsJobType
 from src.nlp_processor.jobs.identifiers.base import JobIdentifierBase
@@ -74,6 +76,10 @@ class DatabaseClient:
                         raise e
 
         return wrapper
+
+    @session_manager
+    async def run_query_builder(self, session: AsyncSession, query_builder: QueryBuilderBase) -> Any:
+        return await query_builder.build(session)
 
     @session_manager
     async def execute_all(self, session: AsyncSession, query: Select):
@@ -307,173 +313,15 @@ class DatabaseClient:
         min_doc_term_threshold: int = 100
     ) -> LabeledDataFrame[BagOfWordsBaseLabels]:
 
-        # CTE for all URLs with bag of words
-        relevant_urls = (
-            select(URL.id)
-            .where(
-                exists(
-                    select(literal(1))
-                    .where(
-                        HTMLBagOfWords.type == bag_of_words_type.value,
-                        HTMLBagOfWords.url_id == URL.id,
-                    )
-                )
-            )
-            .cte("relevant_urls")
-        )
-        relevant_url_id_col: ColumnElement[int] = relevant_urls.c.id
+        return await self.run_query_builder(BagOfWordsMLInputQueryBuilder(
+            bag_of_words_type=bag_of_words_type,
+            top_n_words=top_n_words,
+            min_doc_term_threshold=min_doc_term_threshold
+        ))
 
-        # Get Total Number of documents with a Bag Of Words CTE (N)
-        total_docs_query = (
-            select(
-                func.count(relevant_url_id_col).label("total_document_count")
-            )
-        )
-        count_all_docs: int = await self.execute_scalar(
-            session=session,
-            query=total_docs_query
-        )
-
-        # CTE for top n terms
-        top_n_terms = (
-            select(HTMLBagOfWords.term_id)
-            .where(HTMLBagOfWords.type == bag_of_words_type.value)
-            .group_by(HTMLBagOfWords.term_id)
-            .order_by(func.count(HTMLBagOfWords.url_id).desc())
-            .limit(top_n_words)
-            .cte("top_n_terms")
-        )
-        top_n_terms_id_col: ColumnElement[int] = top_n_terms.c.term_id
+    # TODO: Convert from LabeledDataFrame to class?
 
 
-
-        # Cross join of all URLs with bag of words and top n terms
-        url_term_cross_join = (
-            select(
-                relevant_url_id_col.label("url_id"),
-                top_n_terms_id_col,
-            )
-            .select_from(relevant_urls)
-            .outerjoin(
-                top_n_terms,
-                onclause=literal_column("1=1"),
-                full=True)
-            .cte("url_term_cross_join")
-        )
-        cross_url_id_col: ColumnElement[int] = url_term_cross_join.c.url_id
-        cross_term_id_col: ColumnElement[int] = url_term_cross_join.c.term_id
-
-
-
-
-
-        # Get CTE for each term and the number of URLs it appears in (n_t)
-        count_docs_with_term_cte = (
-            select(
-                top_n_terms_id_col.label("term_id"),
-                func.count(HTMLBagOfWords.url_id).label("term_count")
-            )
-            .join(
-                HTMLBagOfWords,
-                HTMLBagOfWords.term_id == top_n_terms_id_col
-            )
-            .where(HTMLBagOfWords.type == bag_of_words_type.value)
-            .group_by(top_n_terms_id_col)
-            .cte("term_counts")
-        )
-        count_docs_with_term_term_id_col: ColumnElement[int] = count_docs_with_term_cte.c.term_id
-        count_docs_with_term_col: ColumnElement[int] = count_docs_with_term_cte.c.term_count
-
-        # Get CTE for each document and the number of terms it contains (n_d)
-        sum_func = func.sum(HTMLBagOfWords.count)
-        count_all_terms_in_doc_cte = (
-            select(
-                relevant_url_id_col.label("url_id"),
-                sum_func.label("doc_term_count")
-            )
-            .join(
-                HTMLBagOfWords,
-                HTMLBagOfWords.url_id == relevant_url_id_col
-            )
-            .where(HTMLBagOfWords.type == bag_of_words_type.value)
-            .having(sum_func > min_doc_term_threshold)
-            .group_by(relevant_url_id_col)
-            .cte("doc_term_counts")
-        )
-        count_all_terms_in_doc_url_id_col: ColumnElement[int] = count_all_terms_in_doc_cte.c.url_id
-        count_all_terms_in_doc_col: ColumnElement[int] = count_all_terms_in_doc_cte.c.doc_term_count
-
-        count_term_in_doc_col: InstrumentedAttribute[int] = HTMLBagOfWords.count
-
-
-        tf = count_term_in_doc_col / count_all_terms_in_doc_col
-        idf = func.log(
-            count_all_docs /
-            func.coalesce(count_docs_with_term_col, 1)  # Account for nulls in join
-        )
-        tf_idf = cast(tf * idf, Float)
-
-        final_subquery = (
-            select(
-                cross_url_id_col.label("url_id"),
-                cross_term_id_col.label("term_id"),
-                # Below used for debugging
-                # func.coalesce(count_term_in_doc_col, 0).label("count_term_in_doc"),
-                # count_all_terms_in_doc_col.label("count_all_terms_in_doc"),
-                # literal(count_all_docs).label("count_all_documents"),
-                # count_docs_with_term_col.label("count_docs_with_term"),
-                # tf.label("tf"),
-                # idf.label("idf"),
-                tf_idf.label("tf_idf")
-            )
-            .outerjoin(
-                HTMLBagOfWords,
-                and_(
-                    HTMLBagOfWords.url_id == cross_url_id_col,
-                    HTMLBagOfWords.term_id == cross_term_id_col
-                )
-            )
-            .join(
-                count_docs_with_term_cte,
-                count_docs_with_term_term_id_col == cross_term_id_col
-            )
-            .join(
-                count_all_terms_in_doc_cte,
-                count_all_terms_in_doc_url_id_col == cross_url_id_col
-            )
-            .where(
-                HTMLBagOfWords.type == bag_of_words_type.value
-            )
-        ).subquery("tf_idf")
-
-        tf_idf_term_id: ColumnElement[int] = final_subquery.c.term_id
-        tf_idf_url_id: ColumnElement[int] = final_subquery.c.url_id
-        tf_idf_value: ColumnElement[float] = final_subquery.c.tf_idf
-
-        # Add annotations
-        labels = BagOfWordsBaseLabels()
-
-        final_query = (
-            select(
-                tf_idf_url_id.label(labels.url_id),
-                tf_idf_term_id.label(labels.term_id),
-                tf_idf_value.label(labels.tf_idf),
-                URLAnnotations.relevant.label(labels.relevant),
-                URLAnnotations.record_type_fine.label(labels.record_type_fine),
-                URLAnnotations.record_type_coarse.label(labels.record_type_coarse)
-            ).join(
-                URLAnnotations,
-                URLAnnotations.url_id == tf_idf_url_id,
-            )
-        )
-
-
-        result = await self.execute_all(session=session, query=final_query)
-
-        return LabeledDataFrame(
-            df=pl.DataFrame(result),
-            labels=labels
-        )
 
 
 
