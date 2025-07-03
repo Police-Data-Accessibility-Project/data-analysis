@@ -1,21 +1,18 @@
 from functools import wraps
-from operator import and_
 from typing import List, Dict, Any
 
+import polars as pl
 from environs import Env
-from sqlalchemy import select, update, or_, Select, func, exists, literal, literal_column, Column, ColumnElement, cast, \
-    Float
+from sqlalchemy import select, update, or_, Select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
-from sqlalchemy.orm import InstrumentedAttribute
 
 from src.db.dtos.input.url_annotations import URLAnnotationsInput
-from src.db.dtos.labeled_data_frame import LabeledDataFrame
 from src.db.dtos.output.url import URLOutput
 from src.db.enums import ErrorType
-from src.db.models.core import URL, URLFullHTML, URLError, URLCompressedHTML, URLAnnotations, HTMLBagOfWords
-from src.db.df_labels.bag_of_words import BagOfWordsBaseLabels
+from src.db.models.core import URL, URLFullHTML, URLError, URLCompressedHTML, URLAnnotations
 from src.db.queries.builder import QueryBuilderBase
-from src.db.queries.ml_input_builder.bag_of_words_.bag_of_words import BagOfWordsMLInputQueryBuilder
+from src.db.queries.ml_input_builder.bag_of_words_.builder import BagOfWordsMLInputQueryBuilder
+from src.db.queries.ml_input_builder.raw.builder import RawMLInputQueryBuilder
 from src.nlp_processor.families.registry.instances import FAMILY_REGISTRY
 from src.nlp_processor.jobs.enums import HTMLBagOfWordsJobType
 from src.nlp_processor.jobs.identifiers.base import JobIdentifierBase
@@ -25,7 +22,7 @@ from src.nlp_processor.run_manager.check_query_builder.core import CheckQueryBui
 from src.nlp_processor.set.context import SetContext
 from src.nlp_processor.set.state import SetState
 from src.utils.compression import decompress_html, compress_html
-import polars as pl
+
 
 def get_postgres_connection_string():
     env = Env()
@@ -37,6 +34,7 @@ def get_postgres_connection_string():
     database = env.str("POSTGRES_DB")
 
     return f"postgresql+asyncpg://{user}:{password}@{host}:{port}/{database}"
+
 
 class DatabaseClient:
 
@@ -182,7 +180,6 @@ class DatabaseClient:
 
         return missing_jobs
 
-
     @session_manager
     async def get_all_url_sets(
         self,
@@ -224,16 +221,18 @@ class DatabaseClient:
                     job_id = builder.get_job_id_from_label(label)
                     set_jobs.append(job_id)
 
-            set_states.append(SetState(
-                context=SetContext(
-                    url_info=URLOutput(
-                        id=row["id"],
-                        url=row["url"],
+            set_states.append(
+                SetState(
+                    context=SetContext(
+                        url_info=URLOutput(
+                            id=row["id"],
+                            url=row["url"],
+                        ),
+                        html=None,
                     ),
-                    html=None,
-                ),
-                job_ids=set_jobs
-            ))
+                    job_ids=set_jobs
+                )
+            )
         return set_states
 
     @session_manager
@@ -284,7 +283,6 @@ class DatabaseClient:
             return None
         return decompress_html(row["compressed_html"])
 
-
     @session_manager
     async def add_annotations(
         self,
@@ -304,26 +302,24 @@ class DatabaseClient:
             )
             session.add(url_annotations)
 
-    @session_manager
     async def get_bag_of_words_for_ml(
         self,
-        session: AsyncSession,
         bag_of_words_type: HTMLBagOfWordsJobType = HTMLBagOfWordsJobType.ALL_WORDS,
         top_n_words: int = 1000,
         min_doc_term_threshold: int = 100
-    ) -> LabeledDataFrame[BagOfWordsBaseLabels]:
+    ) -> pl.DataFrame:
 
-        return await self.run_query_builder(BagOfWordsMLInputQueryBuilder(
-            bag_of_words_type=bag_of_words_type,
-            top_n_words=top_n_words,
-            min_doc_term_threshold=min_doc_term_threshold
-        ))
+        return await self.run_query_builder(
+            query_builder=BagOfWordsMLInputQueryBuilder(
+                bag_of_words_type=bag_of_words_type,
+                top_n_words=top_n_words,
+                min_doc_term_threshold=min_doc_term_threshold
+            )
+        )
 
-    # TODO: Convert from LabeledDataFrame to class?
-
-
-
-
-
-
-
+    async def get_raw_for_ml(
+        self,
+    ) -> pl.DataFrame:
+        return await self.run_query_builder(
+            query_builder=RawMLInputQueryBuilder()
+        )

@@ -1,12 +1,12 @@
-from typing import override
+from typing_extensions import override
 
-from sqlalchemy import CTE, select, exists, literal, ColumnElement, func, literal_column, Float, cast, and_
-from sqlalchemy.orm import InstrumentedAttribute
 import polars as pl
+from sqlalchemy import select, ColumnElement, func, Float, cast, and_
+from sqlalchemy.orm import InstrumentedAttribute
 
 from src.db.df_labels.bag_of_words import BagOfWordsBaseLabels
-from src.db.dtos.labeled_data_frame import LabeledDataFrame
-from src.db.models.core import URL, HTMLBagOfWords, URLAnnotations
+from src.db.format import rows_to_list_of_simple_dicts
+from src.db.models.core import HTMLBagOfWords, URLAnnotations
 from src.db.queries.builder import QueryBuilderBase
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.count_all_terms_in_doc import CountAllTermsInDocCTE
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.count_docs_with_term import CountDocsWithTermCTE
@@ -73,7 +73,7 @@ class BagOfWordsMLInputQueryBuilder(QueryBuilderBase):
 
 
     @override
-    async def run(self) -> LabeledDataFrame[BagOfWordsBaseLabels]:
+    async def run(self) -> pl.DataFrame:
         relevant_urls_cte = self._get_relevant_urls_cte()
 
         count_all_docs = await self._get_count_all_docs(relevant_urls_cte.url_id)
@@ -162,7 +162,4 @@ class BagOfWordsMLInputQueryBuilder(QueryBuilderBase):
 
         result = await self.execute_all(query=final_query)
 
-        return LabeledDataFrame(
-            df=pl.DataFrame(result),
-            labels=labels
-        )
+        return pl.DataFrame(rows_to_list_of_simple_dicts(result))

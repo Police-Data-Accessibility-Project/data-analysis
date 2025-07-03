@@ -10,7 +10,7 @@ dependencies = [
     "bs4>=0.0.2",
     "datasets>=3.6.0",
     "environs>=14.2.0",
-    "huggingface-hub~=0.32.0",
+    "huggingface-hub==0.33.2",
     "joblib>=1.5.1",
     "loguru>=0.7.3",
     "lxml>=5.4.0",

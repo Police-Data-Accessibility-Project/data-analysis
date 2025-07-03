@@ -24,4 +24,4 @@ class QueryBuilderBase:
 
     async def build(self, session: AsyncSession) -> Any:
         self._session = session
-        return self.run()
+        return await self.run()

@@ -1,15 +1,11 @@
 """
 Formats results into an ML-ingestable format.
 """
-import asyncio
-
-import joblib
 
 from src.db.client import DatabaseClient
-from src.db.dtos.labeled_data_frame import LabeledDataFrame
-from src.ml_input_builder.formatter import Formatter
-from src.ml_input_builder.query_builder import QueryBuilder
-from src.utils.paths import get_output_path
+from src.ml_input_builder.registry.instantiations import BAG_OF_WORDS_REGISTRY_ENTRY, RAW_REGISTRY_ENTRY
+from src.ml_input_builder.uploader import HuggingFaceUploader
+from src.ml_input_builder.write import write_to_parquet
 
 
 class MLInputBuilder:
@@ -17,33 +13,39 @@ class MLInputBuilder:
     Formats results into an ML-ingestable format.
     """
 
-    def __init__(self):
-        self.query_builder = QueryBuilder()
-        self.db_client = DatabaseClient()
-        self.formatter = Formatter()
-
-
-    @staticmethod
-    async def save(
-        name: str,
-        dict_: dict,
+    def __init__(
+        self,
+        huggingface_token: str
     ):
-        joblib.dump(
-            value=dict_,
-            filename=get_output_path(f"{name}.joblib")
+        self.db_client = DatabaseClient()
+        self.uploader = HuggingFaceUploader(
+            token=huggingface_token
         )
+
 
 
     async def bag_of_words(self):
-        ldf: LabeledDataFrame = await self.db_client.get_bag_of_words_for_ml()
+        df = await self.db_client.get_bag_of_words_for_ml()
 
-        intermediate = await self.formatter.bag_of_words(ldf)
-
-        await self.save(
-            name="bag_of_words",
-            dict_=intermediate.model_dump(),
+        write_to_parquet(
+            df,
+            name=BAG_OF_WORDS_REGISTRY_ENTRY.filename
         )
 
-if __name__ == "__main__":
-    ml_input_builder = MLInputBuilder()
-    asyncio.run(ml_input_builder.bag_of_words())
+        self.uploader.upload(
+            entry=BAG_OF_WORDS_REGISTRY_ENTRY
+        )
+
+    async def raw(self):
+        df = await self.db_client.get_raw_for_ml()
+
+        write_to_parquet(
+            df,
+            name=RAW_REGISTRY_ENTRY.filename
+        )
+
+        self.uploader.upload(
+            entry=RAW_REGISTRY_ENTRY
+        )
+
+
