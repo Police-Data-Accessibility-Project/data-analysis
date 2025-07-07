@@ -6,11 +6,12 @@ from sqlalchemy.orm import InstrumentedAttribute
 
 from src.db.df_labels.bag_of_words import BagOfWordsBaseLabels
 from src.db.format import rows_to_list_of_simple_dicts
-from src.db.models.core import HTMLBagOfWords, URLAnnotations
+from src.db.models.core import HTMLBagOfWords, URLAnnotations, URL, HTMLTerm
 from src.db.queries.builder import QueryBuilderBase
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.count_all_terms_in_doc import CountAllTermsInDocCTE
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.count_docs_with_term import CountDocsWithTermCTE
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.relevant_urls import RelevantURLsCTE
+from src.db.queries.ml_input_builder.bag_of_words_.ctes.tf_idf import TfIdfCTE
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.top_n_terms import TopNTermsCTE
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.url_term_cross_join import URLTermCrossJoinCTE
 from src.nlp_processor.jobs.enums import HTMLBagOfWordsJobType
@@ -97,66 +98,36 @@ class BagOfWordsMLInputQueryBuilder(QueryBuilderBase):
         # Consolidate Below ==============
         count_term_in_doc_col: InstrumentedAttribute[int] = HTMLBagOfWords.count
 
-        tf = count_term_in_doc_col / count_all_terms_in_doc.doc_term_count
-        idf = func.log(
-            count_all_docs /
-            func.coalesce(count_docs_with_terms_cte.term_count, 1)  # Account for nulls in join
+        tf_idf_cte = TfIdfCTE(
+            count_all_docs=count_all_docs,
+            count_all_terms_in_doc=count_all_terms_in_doc,
+            count_docs_with_terms_cte=count_docs_with_terms_cte,
+            url_term_cross_join_cte=url_term_cross_join_cte,
+            bag_of_words_type=self.bag_of_words_type
         )
-        tf_idf = cast(tf * idf, Float)
-
-
-        final_subquery = (
-            select(
-                url_term_cross_join_cte.url_id.label("url_id"),
-                url_term_cross_join_cte.term_id.label("term_id"),
-                # Below used for debugging
-                # func.coalesce(count_term_in_doc_col, 0).label("count_term_in_doc"),
-                # count_all_terms_in_doc_col.label("count_all_terms_in_doc"),
-                # literal(count_all_docs).label("count_all_documents"),
-                # count_docs_with_term_col.label("count_docs_with_term"),
-                # tf.label("tf"),
-                # idf.label("idf"),
-                tf_idf.label("tf_idf")
-            )
-            .outerjoin(
-                HTMLBagOfWords,
-                and_(
-                    HTMLBagOfWords.url_id == url_term_cross_join_cte.url_id,
-                    HTMLBagOfWords.term_id == url_term_cross_join_cte.term_id
-                )
-            )
-            .join(
-                count_docs_with_terms_cte.query,
-                count_docs_with_terms_cte.term_id == url_term_cross_join_cte.term_id
-            )
-            .join(
-                count_all_terms_in_doc.query,
-                count_all_terms_in_doc.url_id == url_term_cross_join_cte.url_id
-            )
-            .where(
-                HTMLBagOfWords.type == self.bag_of_words_type.value
-            )
-        ).subquery("tf_idf")
-
-
-        tf_idf_term_id: ColumnElement[int] = final_subquery.c.term_id
-        tf_idf_url_id: ColumnElement[int] = final_subquery.c.url_id
-        tf_idf_value: ColumnElement[float] = final_subquery.c.tf_idf
 
         # Add annotations
         labels = BagOfWordsBaseLabels()
 
         final_query = (
             select(
-                tf_idf_url_id.label(labels.url_id),
-                tf_idf_term_id.label(labels.term_id),
-                tf_idf_value.label(labels.tf_idf),
+                URL.url.label("url"),
+                HTMLTerm.name.label("term"),
+                tf_idf_cte.tf_idf.label(labels.tf_idf),
                 URLAnnotations.relevant.label(labels.relevant),
                 URLAnnotations.record_type_fine.label(labels.record_type_fine),
                 URLAnnotations.record_type_coarse.label(labels.record_type_coarse)
             ).join(
                 URLAnnotations,
-                URLAnnotations.url_id == tf_idf_url_id,
+                URLAnnotations.url_id == tf_idf_cte.url_id,
+            )
+            .join(
+                URL,
+                URL.id == tf_idf_cte.url_id
+            )
+            .join(
+                HTMLTerm,
+                HTMLTerm.id == tf_idf_cte.term_id
             )
         )
 

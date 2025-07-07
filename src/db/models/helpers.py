@@ -39,3 +39,13 @@ def get_enum_column_orm(
         ),
         nullable=nullable
     )
+
+
+def get_single_url_relationship(back_populates_name: str) -> Mapped["URL"]:
+    return sa.orm.relationship("URL", back_populates=back_populates_name, uselist=False)
+
+
+url_relationship_kwargs = dict(
+    cascade="all, delete-orphan",
+    back_populates="url"
+)

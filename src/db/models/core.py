@@ -6,14 +6,11 @@ from sqlalchemy.orm import declarative_base, Mapped
 
 from src.db.enums import ErrorType, RecordTypeFine, RecordTypeCoarse
 from src.db.models.base import URLDerivedModel, StringMapModel, FamilyModel, Base
-from src.db.models.helpers import get_id_column_orm, get_created_at_column_orm, get_enum_column_orm
+from src.db.models.helpers import get_id_column_orm, get_created_at_column_orm, get_enum_column_orm, \
+    get_single_url_relationship, url_relationship_kwargs
 from src.nlp_processor.jobs.enums import HTMLContentMetricJobType, HTMLMetadataJobType, URLComponentJobType, \
     HTMLBagOfWordsJobType, HTMLTermTagCountsJobType, HTMLBagOfTagsJobType
 
-url_relationship_kwargs = dict(
-    cascade="all, delete-orphan",
-    back_populates="url"
-)
 
 class URL(Base):
     __tablename__ = "urls"
@@ -36,9 +33,6 @@ class URL(Base):
     html_term_tag_counts = sa.orm.relationship("HTMLTermTagCount", **url_relationship_kwargs)
     annotations = sa.orm.relationship("URLAnnotations", **url_relationship_kwargs)
 
-
-def get_single_url_relationship(back_populates_name: str) -> Mapped[URL]:
-    return sa.orm.relationship("URL", back_populates=back_populates_name, uselist=False)
 
 class URLAnnotations(URLDerivedModel):
     __tablename__ = 'url_annotations'
@@ -82,6 +76,7 @@ class URLFullHTML(URLDerivedModel):
 class URLCompressedHTML(URLDerivedModel):
     __tablename__ = "url_compressed_html"
     compressed_html = sa.Column(sa.LargeBinary, nullable=False)
+    hash = sa.Column(sa.Text, nullable=False)
 
     # Relationships
     url = get_single_url_relationship("compressed_html")

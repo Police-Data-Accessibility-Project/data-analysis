@@ -1,11 +1,8 @@
+import polars as pl
 from sqlalchemy import select
 
-from src.db.format import rows_to_list_of_simple_dicts
 from src.db.models.core import URL, URLAnnotations, URLCompressedHTML
 from src.db.queries.builder import QueryBuilderBase
-
-import polars as pl
-
 from src.utils.compression import decompress_html
 
 
