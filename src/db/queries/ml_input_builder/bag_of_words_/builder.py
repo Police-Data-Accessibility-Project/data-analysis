@@ -10,10 +10,12 @@ from src.db.models.core import HTMLBagOfWords, URLAnnotations, URL, HTMLTerm
 from src.db.queries.builder import QueryBuilderBase
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.count_all_terms_in_doc import CountAllTermsInDocCTE
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.count_docs_with_term import CountDocsWithTermCTE
+from src.db.queries.ml_input_builder.bag_of_words_.ctes.duplicate_hash_cte import DuplicateHashCTE
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.relevant_urls import RelevantURLsCTE
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.tf_idf import TfIdfCTE
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.top_n_terms import TopNTermsCTE
 from src.db.queries.ml_input_builder.bag_of_words_.ctes.url_term_cross_join import URLTermCrossJoinCTE
+from src.db.queries.ml_input_builder.bag_of_words_.ctes.whitelisted_urls import WhitelistedURLsCTE
 from src.nlp_processor.jobs.enums import HTMLBagOfWordsJobType
 
 
@@ -31,7 +33,12 @@ class BagOfWordsMLInputQueryBuilder(QueryBuilderBase):
         self.min_doc_term_threshold = min_doc_term_threshold
 
     def _get_relevant_urls_cte(self) -> RelevantURLsCTE:
-        return RelevantURLsCTE(self.bag_of_words_type)
+        return RelevantURLsCTE(
+            self.bag_of_words_type,
+            whitelisted_urls_cte=WhitelistedURLsCTE(
+                DuplicateHashCTE()
+            )
+        )
 
     def _get_top_n_terms_cte(self) -> TopNTermsCTE:
         return TopNTermsCTE(
@@ -94,9 +101,6 @@ class BagOfWordsMLInputQueryBuilder(QueryBuilderBase):
         count_all_terms_in_doc = await self._get_count_all_terms_in_doc(
             relevant_url_id_col=url_term_cross_join_cte.url_id
         )
-
-        # Consolidate Below ==============
-        count_term_in_doc_col: InstrumentedAttribute[int] = HTMLBagOfWords.count
 
         tf_idf_cte = TfIdfCTE(
             count_all_docs=count_all_docs,
