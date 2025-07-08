@@ -3,7 +3,7 @@ from typing import List, Dict, Any
 
 import polars as pl
 from environs import Env
-from sqlalchemy import select, update, or_, Select
+from sqlalchemy import select, update, Select
 from sqlalchemy.ext.asyncio import create_async_engine, async_sessionmaker, AsyncSession
 
 from src.db.dtos.input.url_annotations import URLAnnotationsInput
@@ -13,13 +13,13 @@ from src.db.models.core import URL, URLFullHTML, URLError, URLCompressedHTML, UR
 from src.db.queries.builder import QueryBuilderBase
 from src.db.queries.ml_input_builder.bag_of_words_.builder import BagOfWordsMLInputQueryBuilder
 from src.db.queries.ml_input_builder.raw.builder import RawMLInputQueryBuilder
+from src.db.queries.nlp_processor.get_all_url_sets.builder import GetAllURLSetsQueryBuilder
+from src.db.queries.nlp_processor.get_run_jobs.builder import GetRunJobsQueryBuilder
 from src.nlp_processor.families.registry.instances import FAMILY_REGISTRY
 from src.nlp_processor.jobs.enums import HTMLBagOfWordsJobType
 from src.nlp_processor.jobs.identifiers.base import JobIdentifierBase
 from src.nlp_processor.jobs.mapper.map import map_job_result_to_models
 from src.nlp_processor.jobs.result.base import JobResultBase
-from src.nlp_processor.run_manager.check_query_builder.core import CheckQueryBuilder
-from src.nlp_processor.set.context import SetContext
 from src.nlp_processor.set.state import SetState
 from src.utils.compression import decompress_html, compress_html
 
@@ -149,91 +149,23 @@ class DatabaseClient:
             .values(response_code=response_code)
         )
 
-    @session_manager
     async def get_run_jobs(
         self,
-        session: AsyncSession,
-        job_ids: List[JobIdentifierBase]
+        job_ids: list[JobIdentifierBase]
     ) -> List[JobIdentifierBase]:
-        """
-        Get the set of jobs whose existence should be checked for all valid URLs in the database
-        :param session:
-        :param job_ids:
-        :return:
-        """
-        builder = CheckQueryBuilder(job_ids)
-        subqs = []
-        for job_id in builder.job_ids:
-            subq = builder.build_global_subquery(job_id)
-            subqs.append(subq)
-        query = select(*subqs)
+        """Get the set of jobs whose existence should be checked for all valid URLs in the database."""
+        return await self.run_query_builder(
+            query_builder=GetRunJobsQueryBuilder(job_ids)
+        )
 
-        execution_result = await session.execute(query)
-        row = execution_result.mappings().one_or_none()
 
-        missing_jobs = []
-        for label in builder.get_all_labels():
-            any_url_missing_job = row[label]
-            if any_url_missing_job:
-                job_id = builder.get_job_id_from_label(label)
-                missing_jobs.append(job_id)
-
-        return missing_jobs
-
-    @session_manager
     async def get_all_url_sets(
         self,
-        session: AsyncSession,
         job_ids: List[JobIdentifierBase]
-    ) -> List[SetState]:
-
-        if len(job_ids) == 0:
-            return None
-        builder = CheckQueryBuilder(job_ids)
-        sqs = builder.get_flag_select_subqueries()
-        select_statements = [sq.select for sq in sqs]
-        query = select(
-            URL.id,
-            URL.url,
-            *select_statements,
-        ).join(
-            URLCompressedHTML
+    ) -> List[SetState] | None:
+        return await self.run_query_builder(
+            query_builder=GetAllURLSetsQueryBuilder(job_ids)
         )
-
-        # Outer join for every family with jobs present
-        query = builder.add_cte_outer_joins(query, sqs)
-
-        query = query.where(
-            or_(
-                *select_statements
-            )
-        )
-
-        execution_result = await session.execute(query)
-        row = execution_result.mappings().all()
-
-        set_states = []
-        for row in row:
-            set_jobs = []
-            for label in builder.get_all_labels():
-                url_missing_job = row[label]
-                if url_missing_job:
-                    job_id = builder.get_job_id_from_label(label)
-                    set_jobs.append(job_id)
-
-            set_states.append(
-                SetState(
-                    context=SetContext(
-                        url_info=URLOutput(
-                            id=row["id"],
-                            url=row["url"],
-                        ),
-                        html=None,
-                    ),
-                    job_ids=set_jobs
-                )
-            )
-        return set_states
 
     @session_manager
     async def upload_jobs_for_set(

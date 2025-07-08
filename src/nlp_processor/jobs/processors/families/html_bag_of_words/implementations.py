@@ -47,6 +47,8 @@ class ExtractHTMLBagOfWordsAllWordsProcessor(ExtractHTMLBagOfWordsProcessorTempl
                 continue
             if not token.is_alpha:
                 continue
+            if len(token.text) < 2:
+                continue
             text = token.lemma_.lower()
             bag_of_words[text] = bag_of_words.get(text, 0) + 1
         return bag_of_words

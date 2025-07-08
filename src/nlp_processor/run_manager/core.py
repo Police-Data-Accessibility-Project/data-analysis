@@ -29,7 +29,7 @@ class RunManager:
         self,
         available_job_ids: List[JobIdentifierBase]
     ):
-        run_job_ids = await self.db_client.get_run_jobs(available_job_ids)
+        run_job_ids = await self.db_client.get_run_jobs(job_ids=available_job_ids)
         if len(run_job_ids) == 0:
             logger.info("No jobs to run; exiting")
             return
@@ -46,7 +46,9 @@ class RunManager:
                 set_state = run_sets[i]
                 url_info = set_state.context.url_info
                 t.set_description(f"URL {url_info.id}")
-                set_state.context.html = await self.db_client.get_html_for_url(url_info.id)
+                set_state.context.html = await self.db_client.get_html_for_url(
+                    url_id=url_info.id
+                )
                 await self.run_for_set(set_state)
                 set_state.context.unload()
 
